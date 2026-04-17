@@ -377,7 +377,7 @@
         등록된 참가자와 자동 매칭합니다. <b>참가자를 먼저 등록해 두면 정확도 상승.</b>
       </div>
       <div class="row">
-        <input type="file" id="ocrFile" accept="image/*" capture="environment" onchange="onOcrFile(event)" style="flex:1" />
+        <input type="file" id="ocrFile" accept="image/*" onchange="onOcrFile(event)" style="flex:1" />
       </div>
       <div class="row" style="margin-top:8px">
         <button class="btn" id="ocrAiBtn" onclick="runAiOcr()" disabled>🤖 AI 인식 (정확)</button>
@@ -526,7 +526,7 @@
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
         <h2 style="margin:0">📋 대진표 입력</h2>
         <div class="row">
-          <input type="file" id="bracketOcrFile" accept="image/*" capture="environment" onchange="onOcrFile(event,'bracket')" style="font-size:11px;max-width:180px"/>
+          <input type="file" id="bracketOcrFile" accept="image/*" onchange="onOcrFile(event,'bracket')" style="font-size:11px;max-width:180px"/>
           <button class="btn" onclick="runAiOcr('bracket')" id="bracketAiBtn" disabled>🤖 AI 대진표 인식</button>
         </div>
       </div>
@@ -568,7 +568,7 @@
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
         <h2 style="margin:0">📝 결과 입력</h2>
         <div class="row">
-          <input type="file" id="resultsOcrFile" accept="image/*" capture="environment" onchange="onOcrFile(event,'results')" style="font-size:11px;max-width:180px"/>
+          <input type="file" id="resultsOcrFile" accept="image/*" onchange="onOcrFile(event,'results')" style="font-size:11px;max-width:180px"/>
           <button class="btn" onclick="runAiOcr('results')" id="resultsAiBtn" disabled>✍️ AI 결과 인식 (수기)</button>
         </div>
       </div>
