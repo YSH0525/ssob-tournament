@@ -1,0 +1,3147 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>S.S.O.B 대진표 관리</title>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#fff; --line:#d8dbe0; --ink:#1f2937;
+    --sub:#6b7280; --accent:#2563eb; --win:#16a34a; --lose:#dc2626;
+    --warn:#f59e0b;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+    font-size:15px;line-height:1.35}
+  header{position:sticky;top:0;z-index:10;background:#111827;color:#fff;
+    padding:10px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  header h1{font-size:16px;margin:0;flex:1;min-width:140px}
+  header .date{font-size:13px;color:#d1d5db}
+  nav.tabs{display:flex;background:#fff;border-bottom:1px solid var(--line);
+    position:sticky;top:42px;z-index:9;overflow-x:auto}
+  nav.tabs button{flex:1;min-width:70px;padding:10px 6px;border:0;background:#fff;
+    font-size:13px;color:var(--sub);border-bottom:2px solid transparent;white-space:nowrap}
+  nav.tabs button.active{color:var(--accent);border-color:var(--accent);font-weight:700}
+  main{padding:10px;padding-bottom:80px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:12px;margin-bottom:10px}
+  .card h2{font-size:15px;margin:0 0 10px 0}
+  .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .row+.row{margin-top:6px}
+  input,select,button{font-size:14px;font-family:inherit}
+  input[type=text],input[type=number],input[type=date],select{
+    padding:8px;border:1px solid var(--line);border-radius:6px;background:#fff;min-width:0}
+  .btn{padding:8px 12px;border:1px solid var(--accent);background:var(--accent);
+    color:#fff;border-radius:6px;font-weight:600;cursor:pointer}
+  .btn.sec{background:#fff;color:var(--accent)}
+  .btn.warn{background:var(--warn);border-color:var(--warn)}
+  .btn.danger{background:var(--lose);border-color:var(--lose)}
+  .btn.small{padding:4px 8px;font-size:12px}
+  .muted{color:var(--sub);font-size:12px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{border:1px solid var(--line);padding:5px 4px;text-align:center;vertical-align:middle}
+  th{background:#f3f4f6;font-weight:600}
+  .tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:600}
+  .tag.m{background:#dbeafe;color:#1d4ed8}
+  .tag.g{background:#fde68a;color:#92400e}
+  .tag.w{background:#dcfce7;color:#166534}
+  .tag.l{background:#fee2e2;color:#991b1b}
+  .tag.t{background:#e5e7eb;color:#374151}
+  .games-table td{padding:2px}
+  .games-table input[type=text]{width:100%;border:0;padding:6px 4px;text-align:center;font-size:12px}
+  .games-table select{width:100%;border:0;padding:6px 2px;font-size:12px;background:#fff}
+  .games-table input[type=number]{width:100%;border:0;padding:6px 4px;text-align:center;font-size:13px;font-weight:700}
+  .games-table tr.win-top td.s1{background:#dcfce7}
+  .games-table tr.win-top td.s2{background:#fee2e2}
+  .games-table tr.win-bot td.s1{background:#fee2e2}
+  .games-table tr.win-bot td.s2{background:#dcfce7}
+  .games-table td.game-no{background:#f9fafb;font-weight:700;color:#374151}
+  .games-table td.auto-cell{background:#fafafa;color:#374151;font-weight:600;font-size:12px;padding:4px}
+  .games-table td.auto-cell.fine-cell{color:var(--lose)}
+  .games-table td.roster-cell input{background:#fffbeb}
+  .bracket-table thead tr:first-child th{background:#e5e7eb}
+  .bracket-table thead tr:nth-child(2) th{background:#f3f4f6;font-size:11px}
+  .players-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 8px;
+    background:#eef2ff;color:#3730a3;border-radius:16px;font-size:13px}
+  .chip.guest{background:#fef3c7;color:#92400e}
+  .chip button{background:transparent;border:0;color:inherit;font-size:14px;
+    cursor:pointer;padding:0;line-height:1}
+  .stats-table th:first-child,.stats-table td:first-child{text-align:left;padding-left:8px}
+  .fine-cell{color:var(--lose);font-weight:700}
+  .toolbar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);
+    padding:8px;display:flex;gap:6px;justify-content:center;z-index:11}
+  .toolbar .btn{flex:1;max-width:140px}
+  .hidden{display:none !important}
+  .share-preview{background:#fff;padding:14px;border:2px solid #111827;border-radius:6px;margin-top:10px}
+  .share-preview h3{text-align:center;margin:0 0 10px 0;font-size:18px}
+  .share-preview table{font-size:12px}
+  details>summary{cursor:pointer;padding:6px 0;font-weight:600}
+  .mini-badge{font-size:11px;color:var(--sub)}
+  /* ===== A4 인쇄용 ===== */
+  @media print {
+    @page { size: A4 portrait; margin: 10mm 8mm; }
+    body { background: #fff !important; font-size: 10pt; }
+    header, nav.tabs, .toolbar, main > section:not(#print-area) { display: none !important; }
+    #print-area { display: block !important; padding: 0 !important; }
+    .print-table { width: 100%; border-collapse: collapse; }
+    .print-table th, .print-table td { border: 1px solid #000; padding: 3px 4px; text-align: center; font-size: 9pt; color: #000; }
+    .print-table thead th { background: #f0f0f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: 700; }
+    .print-title { text-align: center; font-size: 14pt; font-weight: 700; margin: 0 0 6px 0; }
+    .print-meta { text-align: center; font-size: 10pt; margin-bottom: 8px; }
+    .page-break { page-break-before: always; }
+    .print-foot { font-size: 9pt; margin-top: 8px; color:#000; }
+  }
+  /* 화면에서는 숨김 (인쇄 전용 영역) */
+  #print-area { display: none; }
+  @media (max-width:600px){
+    .games-table{font-size:11px}
+    .games-table input[type=text]{font-size:11px;padding:4px 2px}
+    .games-table input[type=number]{font-size:12px;padding:4px 2px}
+    .games-table select{font-size:11px}
+    th,td{padding:3px 2px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🏸 S.S.O.B 대진표</h1>
+  <span class="date" id="headerDate"></span>
+</header>
+
+<nav class="tabs">
+  <button data-tab="setup" class="active">대회설정</button>
+  <button data-tab="members">👥 회원</button>
+  <button data-tab="games">📋 대진표</button>
+  <button data-tab="results">📝 결과</button>
+  <button data-tab="rank">순위</button>
+  <button data-tab="player">개인기록</button>
+  <button data-tab="history">누적/내역</button>
+  <button data-tab="share">공유</button>
+</nav>
+
+<main>
+  <!-- 대회 설정 -->
+  <section id="tab-setup">
+    <div class="card">
+      <h2>대회 정보</h2>
+      <div class="row">
+        <label>일자</label>
+        <input type="date" id="meetDate" />
+        <input type="text" id="meetName" placeholder="대회명 (예: S.S.O.B)" style="flex:1;min-width:120px" />
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label>게임수</label>
+        <input type="number" id="gameCount" value="18" min="1" max="40" style="width:70px" />
+        <button class="btn sec small" onclick="applyGameCount()">적용</button>
+        <span class="muted">기본 18게임 (행 수 조정 가능)</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>참가자 등록</h2>
+      <div class="row">
+        <button class="btn sec small" onclick="openMemberPicker()">📋 회원에서 선택</button>
+        <span class="muted">또는 직접 입력 ↓</span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input type="text" id="newPlayerName" placeholder="이름" style="flex:1;min-width:120px"
+          onkeypress="if(event.key==='Enter')addPlayer()" />
+        <label><input type="checkbox" id="newPlayerGuest" /> 비회원</label>
+        <button class="btn" onclick="addPlayer()">+ 추가</button>
+      </div>
+      <div class="players-chips" id="playerChips"></div>
+      <div class="muted" style="margin-top:8px">
+        · 회원: 콕 2개 / 비회원: 콕 3개 부담<br>
+        · 이름 클릭 → 비회원 전환 토글
+      </div>
+    </div>
+
+    <div class="card hidden" id="memberPickerCard">
+      <div class="row" style="justify-content:space-between">
+        <h2 style="margin:0">회원에서 참가자 선택</h2>
+        <button class="btn sec small" onclick="closeMemberPicker()">✕</button>
+      </div>
+      <div class="muted" style="margin:6px 0">체크한 회원이 이번 대회 참가자로 추가됩니다.</div>
+      <div id="pickerBox" style="max-height:280px;overflow:auto"></div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn sec small" onclick="pickerAll(true)">전체선택</button>
+        <button class="btn sec small" onclick="pickerAll(false)">전체해제</button>
+        <button class="btn" onclick="applyPicker()" style="flex:1">✓ 선택 추가</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🤖 AI 비전 설정 (선택)</h2>
+      <div class="muted" style="margin-bottom:8px">
+        AI 이미지 인식을 사용하려면 API 키가 필요합니다.<br>
+        키는 이 브라우저에만 저장되며 외부 서버로 전송되지 않습니다.
+      </div>
+      <div class="row">
+        <label>제공사</label>
+        <select id="aiProvider" onchange="onProviderChange()">
+          <option value="gemini">🆓 Google Gemini (무료 추천)</option>
+          <option value="claude">Anthropic Claude (유료, 최고정확도)</option>
+          <option value="openai">OpenAI GPT-4o (유료)</option>
+        </select>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <label>모델</label>
+        <select id="aiModel" onchange="saveAiSettings()">
+          <optgroup label="Gemini (무료)">
+            <option value="gemini-2.5-flash">gemini-2.5-flash (추천)</option>
+            <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+            <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+          </optgroup>
+          <optgroup label="Claude (유료)">
+            <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
+            <option value="claude-opus-4-6">claude-opus-4-6</option>
+          </optgroup>
+          <optgroup label="OpenAI (유료)">
+            <option value="gpt-4o">gpt-4o</option>
+            <option value="gpt-4o-mini">gpt-4o-mini</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <input type="password" id="aiKey" placeholder="API 키 붙여넣기" style="flex:1;min-width:180px" onchange="saveAiSettings()"/>
+        <button class="btn sec small" onclick="toggleKeyVisible()">👁</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <span class="muted" id="aiKeyStatus"></span>
+      </div>
+      <div class="muted" style="margin-top:6px;font-size:12px" id="aiKeyHint"></div>
+    </div>
+
+    <div class="card">
+      <h2>데이터 관리</h2>
+      <div class="row">
+        <button class="btn sec" onclick="saveMeet()">💾 이번 대회 저장</button>
+        <button class="btn sec" onclick="loadMeetPicker()">📂 불러오기</button>
+        <button class="btn sec" onclick="exportJSON()">⬆ 내보내기(JSON)</button>
+        <button class="btn sec" onclick="document.getElementById('importFile').click()">⬇ 가져오기</button>
+        <input type="file" id="importFile" accept="application/json" class="hidden" onchange="importJSON(event)" />
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn danger small" onclick="resetMeet()">현재 대회 초기화</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 회원 관리 -->
+  <section id="tab-members" class="hidden">
+    <div class="card">
+      <h2>👥 회원 등록</h2>
+      <div class="row">
+        <input type="text" id="mNewName" placeholder="이름" style="flex:1;min-width:100px"
+          onkeypress="if(event.key==='Enter')addMember()" />
+        <select id="mNewGender">
+          <option value="M">남</option>
+          <option value="F">여</option>
+        </select>
+        <label><input type="checkbox" id="mNewGuest" /> 비회원</label>
+        <button class="btn" onclick="addMember()">+ 추가</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <input type="text" id="mNewPhone" placeholder="연락처 (선택)" style="flex:1;min-width:120px" />
+        <input type="text" id="mNewNote" placeholder="메모 (선택)" style="flex:1;min-width:120px" />
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn sec" onclick="openImportFromMeets()">📥 출전자 명단에서 가져오기</button>
+        <span class="muted">저장된 대회의 선수 중 미등록자 일괄추가</span>
+      </div>
+
+      <details style="margin-top:8px">
+        <summary class="muted">📋 일괄 등록 (여러 명)</summary>
+        <div class="muted" style="margin:6px 0">한 줄당 한 명. 형식: <code>이름,성별(M/F),회원여부(1=회원/0=비회원)</code><br>예: <code>김위영,M,1</code></div>
+        <textarea id="mBulkText" rows="4" style="width:100%;border:1px solid var(--line);border-radius:6px;padding:6px;font-family:inherit" placeholder="김위영,M,1&#10;윤상호,M,1&#10;배모니카,F,1"></textarea>
+        <button class="btn sec small" onclick="bulkAddMembers()" style="margin-top:6px">일괄 등록</button>
+      </details>
+    </div>
+
+    <div class="card hidden" id="importCard">
+      <div class="row" style="justify-content:space-between">
+        <h2 style="margin:0">📥 출전자 명단에서 회원 등록</h2>
+        <button class="btn sec small" onclick="closeImportFromMeets()">✕</button>
+      </div>
+      <div class="muted" style="margin:6px 0">
+        저장된 모든 대회 + 현재 편집 중인 대회에서 <b>아직 회원 등록 안 된 이름</b>만 표시됩니다.<br>
+        체크 + 성별/구분 선택 후 일괄 등록하세요.
+      </div>
+      <div class="row" style="margin-bottom:6px">
+        <button class="btn sec small" onclick="importAll(true)">전체선택</button>
+        <button class="btn sec small" onclick="importAll(false)">전체해제</button>
+        <button class="btn sec small" onclick="importSetAllGender('M')">전체 남</button>
+        <button class="btn sec small" onclick="importSetAllGender('F')">전체 여</button>
+      </div>
+      <div id="importBox" style="max-height:320px;overflow:auto"></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" onclick="applyImport()" style="flex:1">✓ 선택한 이름 회원으로 등록</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>회원 목록</h2>
+      <div class="row">
+        <input type="text" id="mSearch" placeholder="이름 검색" oninput="renderMembers()" style="flex:1;min-width:120px"/>
+        <select id="mFilter" onchange="renderMembers()">
+          <option value="active">활동회원만</option>
+          <option value="all">전체</option>
+          <option value="guest">비회원만</option>
+          <option value="inactive">휴회원</option>
+        </select>
+      </div>
+      <div id="membersBox" style="margin-top:10px;overflow-x:auto"></div>
+    </div>
+
+    <div class="card">
+      <h2>💰 벌금 정산 현황</h2>
+      <div class="row">
+        <button class="btn sec small" onclick="exportFinesCSV()">📄 CSV 내보내기</button>
+        <span class="muted">누적 벌금 − 입금 합계 = 미납금</span>
+      </div>
+      <div id="finesBox" style="margin-top:8px;overflow-x:auto"></div>
+    </div>
+
+    <div class="card hidden" id="memberDetailCard">
+      <div class="row" style="justify-content:space-between">
+        <h2 style="margin:0" id="mdName">-</h2>
+        <button class="btn sec small" onclick="closeMemberDetail()">✕ 닫기</button>
+      </div>
+      <div id="mdInfo" style="margin-top:8px"></div>
+      <h3 style="margin:12px 0 6px 0;font-size:14px">출전 내역</h3>
+      <div id="mdHistory" style="overflow-x:auto"></div>
+      <h3 style="margin:12px 0 6px 0;font-size:14px">입금 기록</h3>
+      <div class="row">
+        <input type="date" id="mdPayDate" />
+        <input type="number" id="mdPayAmount" placeholder="금액" style="width:100px" />
+        <input type="text" id="mdPayNote" placeholder="비고" style="flex:1;min-width:80px" />
+        <button class="btn small" onclick="addPayment()">+ 입금 기록</button>
+      </div>
+      <div id="mdPayments" style="margin-top:8px;overflow-x:auto"></div>
+    </div>
+  </section>
+
+  <!-- 이미지 OCR -->
+  <section id="tab-ocr" class="hidden">
+    <div class="card">
+      <h2>📷 대진표 이미지 인식</h2>
+      <div class="muted" style="margin-bottom:8px">
+        인쇄된 대진표 사진을 업로드하면 Tesseract(한글 OCR)로 이름을 추출하고,<br>
+        등록된 참가자와 자동 매칭합니다. <b>참가자를 먼저 등록해 두면 정확도 상승.</b>
+      </div>
+      <div class="row">
+        <input type="file" id="ocrFile" accept="image/*" capture="environment" onchange="onOcrFile(event)" style="flex:1" />
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" id="ocrAiBtn" onclick="runAiOcr()" disabled>🤖 AI 인식 (정확)</button>
+        <button class="btn sec" id="ocrRunBtn" onclick="runOcr()" disabled>🔍 Tesseract</button>
+        <button class="btn sec small" onclick="rotateOcrImage()" id="ocrRotBtn" disabled>↻ 회전</button>
+        <span class="muted" id="ocrStatus"></span>
+      </div>
+      <div id="ocrProgress" class="hidden" style="margin-top:8px">
+        <div style="background:#e5e7eb;height:8px;border-radius:4px;overflow:hidden">
+          <div id="ocrBar" style="background:var(--accent);height:100%;width:0%;transition:width .2s"></div>
+        </div>
+        <div class="muted" id="ocrPhase" style="margin-top:4px"></div>
+      </div>
+      <div id="ocrPreviewBox" style="margin-top:10px;overflow:auto;max-height:280px">
+        <canvas id="ocrCanvas" style="max-width:100%;border:1px solid var(--line);border-radius:6px;display:none"></canvas>
+      </div>
+    </div>
+
+    <div class="card hidden" id="ocrResultCard">
+      <h2>인식 결과 검토</h2>
+      <div class="muted" style="margin-bottom:6px">
+        각 셀은 수정 가능. <span style="color:var(--lose)">빨강</span>: 매칭 실패 · <span style="color:var(--warn)">주황</span>: 유사매칭 · <span style="color:var(--win)">초록</span>: 정확매칭
+      </div>
+      <div id="ocrRosterPreview"></div>
+      <div style="overflow-x:auto">
+        <table class="games-table" id="ocrReviewTable">
+          <thead><tr>
+            <th style="width:30px">#</th>
+            <th colspan="2">팀1</th>
+            <th colspan="2">팀2</th>
+            <th>종목</th>
+          </tr></thead>
+          <tbody id="ocrReviewBody"></tbody>
+        </table>
+      </div>
+      <div class="row" style="margin-top:10px;justify-content:space-between">
+        <div>
+          <label><input type="checkbox" id="ocrAutoReg" checked /> 미등록 이름 자동 참가자 등록</label>
+        </div>
+        <div>
+          <button class="btn sec small" onclick="ocrCancel()">취소</button>
+          <button class="btn" onclick="ocrApply()">✓ 대진표에 적용</button>
+        </div>
+      </div>
+      <details style="margin-top:10px">
+        <summary class="muted">원시 OCR 텍스트 (디버그)</summary>
+        <pre id="ocrRawText" style="font-size:11px;background:#f3f4f6;padding:8px;border-radius:6px;overflow:auto;max-height:200px"></pre>
+      </details>
+    </div>
+  </section>
+
+  <!-- 대진/결과 입력 -->
+  <section id="tab-games" class="hidden">
+    <details class="card" id="genCard">
+      <summary style="cursor:pointer;font-weight:700;font-size:15px">🎲 랜덤 대진 생성</summary>
+      <div class="muted" style="margin:8px 0;font-size:12px">
+        참가자 · 종목 · 인당 게임수를 선택하면 종목별로 균형있게 랜덤 배정합니다.
+      </div>
+
+      <div style="padding:10px;background:#f9fafb;border-radius:6px;margin-top:8px">
+        <h3 style="margin:0 0 6px 0;font-size:13px">① 참가자 선택</h3>
+        <div class="row" style="margin-bottom:6px">
+          <button class="btn sec small" onclick="genParticipantsAll(true,'M')">전체 남 ✓</button>
+          <button class="btn sec small" onclick="genParticipantsAll(true,'F')">전체 여 ✓</button>
+          <button class="btn sec small" onclick="genParticipantsAll(true,'all')">전체 ✓</button>
+          <button class="btn sec small" onclick="genParticipantsAll(false,'all')">전체 해제</button>
+        </div>
+        <div id="genParticipantsBox" style="max-height:220px;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:6px;padding:6px"></div>
+      </div>
+
+      <div style="padding:10px;background:#f9fafb;border-radius:6px;margin-top:8px">
+        <h3 style="margin:0 0 6px 0;font-size:13px">② 종목 선택</h3>
+        <div class="row">
+          <label><input type="checkbox" class="gen-type" value="남복" checked onchange="updateGenPreview()"/> 남복</label>
+          <label><input type="checkbox" class="gen-type" value="여복" checked onchange="updateGenPreview()"/> 여복</label>
+          <label><input type="checkbox" class="gen-type" value="혼복" checked onchange="updateGenPreview()"/> 혼복</label>
+        </div>
+      </div>
+
+      <div style="padding:10px;background:#f9fafb;border-radius:6px;margin-top:8px">
+        <h3 style="margin:0 0 6px 0;font-size:13px">③ 인당 게임수</h3>
+        <div class="row">
+          <label><input type="radio" name="gpp" value="3" onchange="updateGenPreview()"/> 3게임</label>
+          <label><input type="radio" name="gpp" value="4" checked onchange="updateGenPreview()"/> 4게임</label>
+          <label><input type="radio" name="gpp" value="5" onchange="updateGenPreview()"/> 5게임</label>
+        </div>
+      </div>
+
+      <div style="padding:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;margin-top:8px" id="genPreviewBox">
+        <!-- 예상 게임수 표시 -->
+      </div>
+
+      <div class="row" style="margin-top:10px">
+        <button class="btn" onclick="runGenBracket(false)" style="flex:1">🎲 랜덤 대진 생성 (새로)</button>
+        <button class="btn sec" onclick="runGenBracket(true)">↻ 다시 섞기</button>
+      </div>
+      <div class="muted" style="margin-top:6px;font-size:11px">
+        · 생성하면 현재 대진표가 <b>교체</b>됩니다 (기존 점수도 삭제)<br>
+        · 출전자 명단도 선택한 참가자로 교체됩니다
+      </div>
+    </details>
+
+    <details class="card" id="editToolsCard">
+      <summary style="cursor:pointer;font-weight:700;font-size:15px">🔧 대진표 명단 편집 도구</summary>
+
+      <div style="margin-top:10px;padding:10px;background:#f9fafb;border-radius:6px">
+        <h3 style="margin:0 0 6px 0;font-size:13px">🔄 이름 일괄 치환</h3>
+        <div class="muted" style="font-size:11px;margin-bottom:6px">모든 게임·출전자 명단의 이름을 한 번에 변경 (OCR 오타 수정 등)</div>
+        <div class="row">
+          <select id="renameOld" style="flex:1">
+            <option value="">-- 기존 이름 선택 --</option>
+          </select>
+          <span>→</span>
+          <input type="text" id="renameNew" placeholder="새 이름" style="flex:1"/>
+          <button class="btn small" onclick="bulkRename()">치환</button>
+        </div>
+      </div>
+
+      <div style="margin-top:10px;padding:10px;background:#f9fafb;border-radius:6px">
+        <h3 style="margin:0 0 6px 0;font-size:13px">📋 출전자 명단 순서 변경</h3>
+        <div id="rosterEditBox"></div>
+      </div>
+
+      <div style="margin-top:10px;padding:10px;background:#f9fafb;border-radius:6px">
+        <h3 style="margin:0 0 6px 0;font-size:13px">🗂 게임 행 관리</h3>
+        <div class="row">
+          <label>행 번호</label>
+          <input type="number" id="rowOpNum" min="1" max="40" style="width:60px" placeholder="#"/>
+          <button class="btn sec small" onclick="insertGameRow()">↕ 위에 삽입</button>
+          <button class="btn sec small" onclick="deleteGameRow()">✕ 행 삭제</button>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <button class="btn sec small" onclick="removeEmptyGames()">🧹 빈 게임행 일괄삭제</button>
+          <button class="btn sec small" onclick="resetAllScores()">🔄 점수만 초기화</button>
+          <button class="btn danger small" onclick="clearAllGames()">⚠ 게임 전체 초기화</button>
+        </div>
+      </div>
+    </details>
+
+    <div class="card" id="breakdownCard">
+      <h2 style="margin:0 0 8px 0">👥 개인별 게임 배정</h2>
+      <div id="breakdownBox"></div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
+        <h2 style="margin:0">📋 대진표 입력</h2>
+        <div class="row">
+          <input type="file" id="bracketOcrFile" accept="image/*" capture="environment" onchange="onOcrFile(event,'bracket')" style="font-size:11px;max-width:180px"/>
+          <button class="btn" onclick="runAiOcr('bracket')" id="bracketAiBtn" disabled>🤖 AI 대진표 인식</button>
+        </div>
+      </div>
+      <div class="muted" style="margin:4px 0 10px 0;font-size:12px">
+        인쇄된 깨끗한 대진표(이름/팀만) 이미지 → 자동 입력
+      </div>
+      <div class="muted" style="margin-bottom:6px">
+        이름은 등록된 참가자에서 자동완성 (텍스트 입력). 25점 기준, 점수 입력시 승패 자동 판정.
+      </div>
+      <div style="overflow-x:auto">
+        <table class="games-table bracket-table" id="gamesTable">
+          <thead>
+            <tr>
+              <th rowspan="2" style="width:32px">게임</th>
+              <th colspan="2">팀1 성명</th>
+              <th colspan="2">팀2 성명</th>
+              <th rowspan="2" style="width:70px">출전자</th>
+            </tr>
+            <tr>
+              <th style="width:70px">A</th>
+              <th style="width:70px">B</th>
+              <th style="width:70px">A</th>
+              <th style="width:70px">B</th>
+            </tr>
+          </thead>
+          <tbody id="gamesBody"></tbody>
+        </table>
+      </div>
+      <div class="muted" style="margin-top:6px">
+        · 팀 배치 + 출전자 명단만 입력 (점수/찬조금은 <b>📝 결과</b> 탭에서)<br>
+        · 이름 셀은 참가자 자동완성 지원
+      </div>
+    </div>
+  </section>
+
+  <!-- 결과 입력 -->
+  <section id="tab-results" class="hidden">
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
+        <h2 style="margin:0">📝 결과 입력</h2>
+        <div class="row">
+          <input type="file" id="resultsOcrFile" accept="image/*" capture="environment" onchange="onOcrFile(event,'results')" style="font-size:11px;max-width:180px"/>
+          <button class="btn" onclick="runAiOcr('results')" id="resultsAiBtn" disabled>✍️ AI 결과 인식 (수기)</button>
+        </div>
+      </div>
+      <div class="muted" style="margin:4px 0 10px 0;font-size:12px">
+        A4 출력 대진표에 손으로 기입한 점수/콕/남여·혼/찬조금 이미지 → 숫자 자동 추출
+      </div>
+      <div style="overflow-x:auto">
+        <table class="games-table bracket-table" id="resultsTable">
+          <thead>
+            <tr>
+              <th rowspan="2" style="width:32px">게임</th>
+              <th rowspan="2">팀1</th>
+              <th rowspan="2" style="width:44px">점수</th>
+              <th rowspan="2">팀2</th>
+              <th rowspan="2" style="width:44px">점수</th>
+              <th rowspan="2" style="width:64px">출전자</th>
+              <th rowspan="2" style="width:44px">콕</th>
+              <th colspan="2">게임수</th>
+              <th rowspan="2" style="width:64px">찬조금</th>
+            </tr>
+            <tr>
+              <th style="width:38px">남,여</th>
+              <th style="width:34px">혼</th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+      <div class="muted" style="margin-top:6px">
+        · 팀/출전자 이름은 <b>대진표 탭</b>에서 수정 (여기선 읽기전용)<br>
+        · 점수 입력시 승자 행 초록 / 패자 행 빨강 표시
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>빠른 입력 현황</h2>
+      <div id="resultsSummary"></div>
+    </div>
+  </section>
+
+  <!-- 순위 -->
+  <section id="tab-rank" class="hidden">
+    <div class="card">
+      <h2>이번 대회 순위표</h2>
+      <div id="rankBox"></div>
+    </div>
+  </section>
+
+  <!-- 개인기록 -->
+  <section id="tab-player" class="hidden">
+    <div class="card">
+      <h2>개인 기록 (이번 대회)</h2>
+      <div id="playerStatsBox"></div>
+    </div>
+  </section>
+
+  <!-- 누적 -->
+  <section id="tab-history" class="hidden">
+    <div class="card">
+      <h2>저장된 대회 목록</h2>
+      <div id="meetList"></div>
+    </div>
+    <div class="card">
+      <h2>누적 통계</h2>
+      <div class="row">
+        <label>기간</label>
+        <select id="histRange" onchange="renderHistory()">
+          <option value="all">전체</option>
+          <option value="year">올해</option>
+          <option value="month">이번달</option>
+        </select>
+      </div>
+      <div id="histBox" style="margin-top:10px"></div>
+    </div>
+  </section>
+
+  <!-- 공유 -->
+  <section id="tab-share" class="hidden">
+    <div class="card">
+      <h2>결과 이미지 공유</h2>
+      <div class="row">
+        <button class="btn" onclick="exportImage('shareBracket')">📷 대진표+결과 이미지</button>
+        <button class="btn sec" onclick="exportImage('shareRank')">📊 순위표 이미지</button>
+      </div>
+      <div class="muted" style="margin-top:6px">이미지를 저장해 톡방에 업로드하세요.</div>
+
+      <div id="shareBracket" class="share-preview"></div>
+      <div id="shareRank" class="share-preview"></div>
+    </div>
+
+    <div class="card">
+      <h2>📄 A4 PDF 출력</h2>
+      <div class="muted" style="margin-bottom:8px">
+        대진표를 A4 용지 1장에 이미지와 동일한 표 형식으로 인쇄합니다.<br>
+        브라우저 인쇄 대화상자에서 <b>"대상: PDF로 저장"</b> 선택시 PDF 파일로 저장됩니다.
+      </div>
+      <div class="row">
+        <button class="btn" onclick="printBracketPdf('blank')">🖨 빈 대진표 (게임만)</button>
+        <button class="btn sec" onclick="printBracketPdf('full')">🖨 결과 포함 (점수/벌금)</button>
+      </div>
+      <div class="muted" style="margin-top:6px">
+        · <b>빈 대진표</b>: 대회 전 출력 → 손으로 점수 기입용<br>
+        · <b>결과 포함</b>: 대회 후 출력 → 기록 보관용
+      </div>
+    </div>
+  </section>
+
+  <!-- 인쇄 전용 영역 (화면 숨김, 인쇄시만 보임) -->
+  <section id="print-area"></section>
+</main>
+
+<div class="toolbar">
+  <button class="btn sec small" onclick="saveMeet()">💾 저장</button>
+  <button class="btn small" onclick="switchTab('rank')">📊 순위</button>
+  <button class="btn small" onclick="switchTab('share')">📷 공유</button>
+</div>
+
+<script>
+/* ============ 상태 ============ */
+const FINE_PER_LOSS = 1000;
+const WIN_SCORE = 25;
+const STORAGE_KEY = "ssob_meets_v1";
+const CURRENT_KEY = "ssob_current_v1";
+
+let state = null; // { date, name, players:[{name,isGuest}], games:[{...}] }
+
+function blankGame(){return{t1a:"",t1b:"",t2a:"",t2b:"",s1:"",s2:""}}
+function defaultState(){
+  const d = new Date();
+  const yyyy=d.getFullYear(), mm=String(d.getMonth()+1).padStart(2,"0"), dd=String(d.getDate()).padStart(2,"0");
+  return {date:`${yyyy}-${mm}-${dd}`, name:"S.S.O.B", players:[], games:Array.from({length:18},blankGame)};
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(CURRENT_KEY);
+    if(raw){state = JSON.parse(raw); return}
+  }catch(e){}
+  state = defaultState();
+}
+function persist(){ localStorage.setItem(CURRENT_KEY, JSON.stringify(state)); }
+
+/* ============ 탭 ============ */
+function switchTab(name){
+  document.querySelectorAll("nav.tabs button").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));
+  document.querySelectorAll("main > section").forEach(s=>s.classList.add("hidden"));
+  document.getElementById("tab-"+name).classList.remove("hidden");
+  if(name==="rank") renderRank();
+  if(name==="player") renderPlayerStats();
+  if(name==="history") {renderMeetList(); renderHistory();}
+  if(name==="share") renderShare();
+  if(name==="members") {renderMembers(); renderFines();}
+  if(name==="results") renderResultsTable();
+  if(name==="games") renderGenParticipants();
+}
+document.querySelectorAll("nav.tabs button").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
+
+/* ============ 참가자 ============ */
+function addPlayer(){
+  const name = document.getElementById("newPlayerName").value.trim();
+  const isGuest = document.getElementById("newPlayerGuest").checked;
+  if(!name) return;
+  if(state.players.some(p=>p.name===name)){alert("이미 등록된 이름"); return}
+  state.players.push({name,isGuest});
+  document.getElementById("newPlayerName").value="";
+  document.getElementById("newPlayerGuest").checked=false;
+  document.getElementById("newPlayerName").focus();
+  persist(); renderPlayers(); renderGamesTable();
+}
+function toggleGuest(i){ state.players[i].isGuest = !state.players[i].isGuest; persist(); renderPlayers(); }
+function removePlayer(i){
+  if(!confirm(`${state.players[i].name} 삭제?`)) return;
+  state.players.splice(i,1); persist(); renderPlayers(); renderGamesTable();
+}
+function renderPlayers(){
+  const box = document.getElementById("playerChips");
+  box.innerHTML = "";
+  state.players.forEach((p,i)=>{
+    const el = document.createElement("span");
+    el.className = "chip"+(p.isGuest?" guest":"");
+    el.innerHTML = `<span onclick="toggleGuest(${i})" style="cursor:pointer">${escapeHtml(p.name)}</span>
+      <span class="mini-badge">${p.isGuest?"비":"회"}</span>
+      <button onclick="removePlayer(${i})" aria-label="삭제">✕</button>`;
+    box.appendChild(el);
+  });
+  const cnt = document.createElement("span");
+  cnt.className="muted"; cnt.style.marginLeft="6px";
+  cnt.textContent = `총 ${state.players.length}명 (회원 ${state.players.filter(p=>!p.isGuest).length} / 비회원 ${state.players.filter(p=>p.isGuest).length})`;
+  box.appendChild(cnt);
+}
+
+/* ============ 게임 테이블 ============ */
+function applyGameCount(){
+  const n = Math.max(1,Math.min(40, +document.getElementById("gameCount").value||18));
+  if(n > state.games.length){
+    while(state.games.length<n) state.games.push(blankGame());
+  } else {
+    if(n < state.games.length && !confirm(`${state.games.length}→${n} 게임으로 축소. 뒤쪽 데이터 삭제됩니다. 계속?`)) return;
+    state.games.length = n;
+  }
+  persist(); renderGamesTable();
+}
+
+function renderGamesTable(){
+  const body = document.getElementById("gamesBody");
+  body.innerHTML = "";
+  const names = state.players.map(p=>p.name);
+  const listId = "dl-players";
+  let dl = document.getElementById(listId);
+  if(!dl){ dl = document.createElement("datalist"); dl.id = listId; document.body.appendChild(dl); }
+  dl.innerHTML = names.map(n=>`<option value="${escapeHtml(n)}">`).join("");
+
+  const rowCount = Math.max(state.games.length, state.players.length);
+  while(state.games.length < rowCount) state.games.push(blankGame());
+
+  const {breakdown, isMan} = computePlayerBreakdown();
+
+  for(let i=0;i<rowCount;i++){
+    const g = state.games[i] || blankGame();
+    const player = state.players[i] || {name:""};
+    const b = player.name ? breakdown[player.name] : null;
+    let hint = "";
+    if(b && b.total>0){
+      const parts = [];
+      if(isMan(player.name)){
+        if(b.nam>0) parts.push(`남복${b.nam}`);
+        if(b.mix>0) parts.push(`혼복${b.mix}`);
+      } else {
+        if(b.yeo>0) parts.push(`여복${b.yeo}`);
+        if(b.mix>0) parts.push(`혼복${b.mix}`);
+      }
+      if(parts.length) hint = `<div style="font-size:10px;color:#6b7280;margin-top:2px">(${parts.join("/")})</div>`;
+    }
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="game-no">${i+1}</td>
+      <td><input type="text" list="dl-players" value="${escapeAttr(g.t1a)}" onchange="setGame(${i},'t1a',this.value)"></td>
+      <td><input type="text" list="dl-players" value="${escapeAttr(g.t1b)}" onchange="setGame(${i},'t1b',this.value)"></td>
+      <td><input type="text" list="dl-players" value="${escapeAttr(g.t2a)}" onchange="setGame(${i},'t2a',this.value)"></td>
+      <td><input type="text" list="dl-players" value="${escapeAttr(g.t2b)}" onchange="setGame(${i},'t2b',this.value)"></td>
+      <td class="roster-cell">
+        <input type="text" list="dl-players" value="${escapeAttr(player.name||"")}" onchange="setRoster(${i},this.value)">
+        ${hint}
+      </td>
+    `;
+    body.appendChild(tr);
+  }
+}
+
+/* 개인별 게임 배정 계산 (g.type 우선, 없으면 성별로 추론) */
+function computePlayerBreakdown(){
+  const members = getMembers();
+  const memberByName = {};
+  Object.values(members).forEach(m=>{memberByName[m.name]=m});
+
+  const isMan = (name)=>{
+    const m = memberByName[name];
+    if(m && m.gender) return m.gender!=="F";
+    return true; // 기본 남자로
+  };
+
+  const inferType = (g)=>{
+    if(g.type) return g.type;
+    const players = [g.t1a,g.t1b,g.t2a,g.t2b].filter(Boolean);
+    if(players.length<4) return null;
+    const men = players.filter(isMan).length;
+    const women = 4 - men;
+    if(men===4) return "남복";
+    if(women===4) return "여복";
+    if(men===2 && women===2) return "혼복";
+    return null;
+  };
+
+  const out = {};
+  state.players.forEach(p=>{
+    out[p.name] = {nam:0, yeo:0, mix:0, total:0};
+  });
+  state.games.forEach(g=>{
+    const type = inferType(g);
+    if(!type) return;
+    [g.t1a,g.t1b,g.t2a,g.t2b].forEach(n=>{
+      if(!n) return;
+      if(!out[n]) out[n] = {nam:0, yeo:0, mix:0, total:0};
+      if(type==="남복") out[n].nam++;
+      else if(type==="여복") out[n].yeo++;
+      else if(type==="혼복") out[n].mix++;
+      out[n].total++;
+    });
+  });
+  return {breakdown: out, isMan};
+}
+
+function renderPlayerBreakdown(){
+  const box = document.getElementById("breakdownBox");
+  if(!box) return;
+  const {breakdown, isMan} = computePlayerBreakdown();
+  const names = Object.keys(breakdown).filter(n=>breakdown[n].total>0 || state.players.some(p=>p.name===n));
+  if(names.length===0){
+    box.innerHTML = `<div class="muted" style="font-size:12px">대진표 생성 또는 입력 후 자동 표시됩니다.</div>`;
+    return;
+  }
+  // 성별별 그룹
+  const men = names.filter(n=>isMan(n)).sort((a,b)=>a.localeCompare(b,"ko"));
+  const women = names.filter(n=>!isMan(n)).sort((a,b)=>a.localeCompare(b,"ko"));
+
+  const fmt = (b,gender)=>{
+    const parts = [];
+    if(gender==="M"){
+      if(b.nam>0) parts.push(`<span class="tag m">남복${b.nam}</span>`);
+      if(b.mix>0) parts.push(`<span class="tag" style="background:#f3e8ff;color:#7c3aed">혼복${b.mix}</span>`);
+    } else {
+      if(b.yeo>0) parts.push(`<span class="tag" style="background:#fce7f3;color:#be185d">여복${b.yeo}</span>`);
+      if(b.mix>0) parts.push(`<span class="tag" style="background:#f3e8ff;color:#7c3aed">혼복${b.mix}</span>`);
+    }
+    return parts.length ? parts.join(" ") : `<span class="muted">-</span>`;
+  };
+  const row = (n, gender)=>{
+    const b = breakdown[n];
+    return `<div style="display:flex;gap:8px;align-items:center;padding:4px 8px;border-bottom:1px solid #f3f4f6">
+      <span style="flex:0 0 90px;font-weight:600">${escapeHtml(n)}</span>
+      <span style="flex:1;font-size:13px">${fmt(b,gender)}</span>
+      <span style="color:var(--sub);font-size:12px">= <b>${b.total}</b>게임</span>
+    </div>`;
+  };
+
+  let h = "";
+  if(men.length>0){
+    h += `<div style="font-weight:700;margin:4px 0 4px 4px;color:#1d4ed8">🧑 남자 (${men.length}명)</div>`;
+    h += men.map(n=>row(n,"M")).join("");
+  }
+  if(women.length>0){
+    h += `<div style="font-weight:700;margin:8px 0 4px 4px;color:#be185d">👩 여자 (${women.length}명)</div>`;
+    h += women.map(n=>row(n,"F")).join("");
+  }
+  // 균등 여부 체크
+  const maleCounts = men.map(n=>breakdown[n].total);
+  const femaleCounts = women.map(n=>breakdown[n].total);
+  const allSame = arr => arr.length===0 || arr.every(v=>v===arr[0]);
+  const uniform = allSame(maleCounts) && allSame(femaleCounts);
+  if(!uniform){
+    h += `<div class="muted" style="margin-top:6px;font-size:11px;color:var(--warn)">⚠ 인당 게임수가 불균등 — 편집 도구로 조정 가능</div>`;
+  }
+  box.innerHTML = h;
+}
+
+/* 결과 테이블 렌더 */
+function renderResultsTable(){
+  const body = document.getElementById("resultsBody");
+  if(!body) return;
+  body.innerHTML = "";
+  const rowCount = Math.max(state.games.length, state.players.length);
+  while(state.games.length < rowCount) state.games.push(blankGame());
+
+  let filled=0, total=0;
+  for(let i=0;i<rowCount;i++){
+    const g = state.games[i] || blankGame();
+    const s1 = parseInt(g.s1), s2 = parseInt(g.s2);
+    const hasScore = !isNaN(s1) && !isNaN(s2);
+    const winTop = hasScore && s1>s2, winBot = hasScore && s2>s1;
+    const player = state.players[i] || {name:"",isGuest:false,cock:"",mf:"",mx:"",donation:""};
+    const team1 = [g.t1a,g.t1b].filter(Boolean).join(" / ");
+    const team2 = [g.t2a,g.t2b].filter(Boolean).join(" / ");
+    if(team1||team2) total++;
+    if(hasScore) filled++;
+
+    const tr = document.createElement("tr");
+    tr.className = winTop?"win-top":winBot?"win-bot":"";
+    tr.innerHTML = `
+      <td class="game-no">${i+1}</td>
+      <td style="font-size:12px;color:#374151">${escapeHtml(team1||"")}</td>
+      <td class="s1"><input type="number" inputmode="numeric" min="0" max="99" value="${escapeAttr(g.s1)}" onchange="setGame(${i},'s1',this.value);renderResultsTable()"></td>
+      <td style="font-size:12px;color:#374151">${escapeHtml(team2||"")}</td>
+      <td class="s2"><input type="number" inputmode="numeric" min="0" max="99" value="${escapeAttr(g.s2)}" onchange="setGame(${i},'s2',this.value);renderResultsTable()"></td>
+      <td style="font-size:12px;color:#374151;background:#fffbeb">${escapeHtml(player.name||"")}${player.name&&player.isGuest?' <span class="tag g">비</span>':""}</td>
+      <td><input type="text" inputmode="numeric" value="${escapeAttr(player.cock||"")}" onchange="setRosterField(${i},'cock',this.value)"></td>
+      <td><input type="text" inputmode="numeric" value="${escapeAttr(player.mf||"")}" onchange="setRosterField(${i},'mf',this.value)"></td>
+      <td><input type="text" inputmode="numeric" value="${escapeAttr(player.mx||"")}" onchange="setRosterField(${i},'mx',this.value)"></td>
+      <td><input type="text" value="${escapeAttr(player.donation||"")}" onchange="setRosterField(${i},'donation',this.value)"></td>
+    `;
+    body.appendChild(tr);
+  }
+  const sumBox = document.getElementById("resultsSummary");
+  if(sumBox){
+    sumBox.innerHTML = `<div class="row" style="gap:14px;flex-wrap:wrap">
+      <div>진행 게임 <b>${total}</b></div>
+      <div>점수 입력 <b>${filled}/${total}</b></div>
+      <div>출전자 <b>${state.players.filter(p=>p.name).length}</b>명</div>
+    </div>`;
+  }
+}
+
+function setRosterField(i,key,val){
+  // 슬롯 없으면 확장
+  while(state.players.length <= i) state.players.push({name:"",isGuest:false});
+  state.players[i][key] = val;
+  persist();
+}
+
+/* ============ 랜덤 대진 생성 ============ */
+let genSelection = new Set(); // 선택된 member id
+
+function renderGenParticipants(){
+  const box = document.getElementById("genParticipantsBox");
+  if(!box) return;
+  const members = Object.values(getMembers()).filter(m=>m.active!==false)
+    .sort((a,b)=>(a.gender||"M").localeCompare(b.gender||"M") || a.name.localeCompare(b.name,"ko"));
+  if(members.length===0){
+    box.innerHTML = `<div class="muted" style="font-size:12px;padding:8px">등록된 회원 없음 — 👥 회원 탭에서 먼저 추가하세요.</div>`;
+    return;
+  }
+  box.innerHTML = members.map(m=>`
+    <label style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-bottom:1px solid #f3f4f6">
+      <input type="checkbox" data-id="${m.id}" data-gender="${m.gender||"M"}"
+        ${genSelection.has(m.id)?"checked":""}
+        onchange="genToggle('${m.id}',this.checked)"/>
+      <span style="flex:1;font-size:13px">${escapeHtml(m.name)}</span>
+      <span class="tag ${m.gender==="F"?"g":"m"}" style="background:${m.gender==="F"?"#fce7f3":"#dbeafe"};color:${m.gender==="F"?"#be185d":"#1d4ed8"}">${m.gender==="F"?"여":"남"}</span>
+      ${m.isGuest?'<span class="tag g">비</span>':""}
+    </label>`).join("");
+  updateGenPreview();
+}
+function genToggle(id, v){
+  if(v) genSelection.add(id); else genSelection.delete(id);
+  updateGenPreview();
+}
+function genParticipantsAll(on, filter){
+  const members = Object.values(getMembers()).filter(m=>m.active!==false);
+  members.forEach(m=>{
+    if(filter==="all" || (filter==="M" && m.gender!=="F") || (filter==="F" && m.gender==="F")){
+      if(on) genSelection.add(m.id); else genSelection.delete(m.id);
+    }
+  });
+  renderGenParticipants();
+}
+
+function getGenParams(){
+  const members = getMembers();
+  const selected = [...genSelection].map(id=>members[id]).filter(Boolean);
+  const types = [...document.querySelectorAll(".gen-type:checked")].map(c=>c.value);
+  const gppEl = document.querySelector("input[name=gpp]:checked");
+  const gpp = gppEl ? parseInt(gppEl.value) : 4;
+  return {selected, types, gpp};
+}
+
+/* 전체 유효 케이스 나열 (균등 + 비균등 포함)
+   각 (Gm, Gy, Gx) 조합을 찾고, 인당 배정을 uniform 또는 2그룹으로 분해 */
+function listAllCases(M, W, gpp, allowNam, allowYeo, allowMix){
+  const cases = [];
+  if(M===0 && W===0) return {cases:[], reason:"참가자 0명"};
+  if(M>0 && !allowNam && !allowMix) return {cases:[], reason:"남자 있으나 남복/혼복 미선택"};
+  if(W>0 && !allowYeo && !allowMix) return {cases:[], reason:"여자 있으나 여복/혼복 미선택"};
+  if((M+W)*gpp % 4 !== 0) return {cases:[], reason:`총슬롯 ${(M+W)*gpp} ÷ 4 불가`};
+
+  const maxGx = allowMix ? Math.min(Math.floor(M*gpp/2), Math.floor(W*gpp/2)) : 0;
+  for(let Gx=0; Gx<=maxGx; Gx++){
+    const remM = M*gpp - 2*Gx;
+    const remW = W*gpp - 2*Gx;
+    if(remM<0 || remW<0) continue;
+    if(remM % 4 !== 0) continue;
+    if(remW % 4 !== 0) continue;
+    const Gm = remM/4, Gy = remW/4;
+
+    if(Gm>0 && !allowNam) continue;
+    if(Gy>0 && !allowYeo) continue;
+    if(Gx>0 && !allowMix) continue;
+
+    // 남자 split (합: 남복=4*Gm, 혼복=2*Gx)
+    let menSplit = null;
+    if(M>0){
+      const aLow = Math.floor(4*Gm/M);
+      const aHigh = Math.ceil(4*Gm/M);
+      const K = 4*Gm - M*aLow; // aHigh 그룹 인원
+      if(aLow===aHigh){
+        menSplit = {uniform:true, groups:[{count:M, a:aLow, b:gpp-aLow}]};
+      } else {
+        menSplit = {uniform:false, groups:[
+          {count:K, a:aHigh, b:gpp-aHigh},
+          {count:M-K, a:aLow, b:gpp-aLow}
+        ]};
+      }
+      if(menSplit.groups.some(g=>g.a<0||g.b<0||g.a+g.b!==gpp)) continue;
+    }
+
+    // 여자 split
+    let womenSplit = null;
+    if(W>0){
+      const cLow = Math.floor(4*Gy/W);
+      const cHigh = Math.ceil(4*Gy/W);
+      const L = 4*Gy - W*cLow;
+      if(cLow===cHigh){
+        womenSplit = {uniform:true, groups:[{count:W, c:cLow, d:gpp-cLow}]};
+      } else {
+        womenSplit = {uniform:false, groups:[
+          {count:L, c:cHigh, d:gpp-cHigh},
+          {count:W-L, c:cLow, d:gpp-cLow}
+        ]};
+      }
+      if(womenSplit.groups.some(g=>g.c<0||g.d<0||g.c+g.d!==gpp)) continue;
+    }
+
+    cases.push({namGames:Gm, yeoGames:Gy, mixGames:Gx, menSplit, womenSplit, uniform: (!menSplit||menSplit.uniform)&&(!womenSplit||womenSplit.uniform)});
+  }
+
+  // 정렬: 균등 먼저, 그 다음 혼복 많은 순
+  cases.sort((a,b)=>{
+    if(a.uniform!==b.uniform) return b.uniform-a.uniform;
+    return b.mixGames - a.mixGames;
+  });
+  return {cases, reason: cases.length===0 ? "유효한 배정 없음 (종목/게임수/성비 조정 필요)" : ""};
+}
+
+/* 하위호환 wrapper: listAllCases 사용 */
+function listPerPersonCases(M, W, gpp, allowNam, allowYeo, allowMix){
+  return listAllCases(M, W, gpp, allowNam, allowYeo, allowMix);
+}
+
+/* 하위호환: 옛 이름 */
+function listAllGameCounts(M,W,gpp,aN,aY,aM){
+  const r = listPerPersonCases(M,W,gpp,aN,aY,aM);
+  return {cases:r.cases.map(c=>({nam:c.namGames,yeo:c.yeoGames,mix:c.mixGames,total:c.namGames+c.yeoGames+c.mixGames,...c})), reason:r.reason};
+}
+
+/* 선택된 경우(또는 기본) 반환 */
+function calcGameCounts(M, W, gpp, allowNam, allowYeo, allowMix){
+  if(M===0 && W===0) throw new Error("참가자 0명");
+  if(M>0 && !allowNam && !allowMix) throw new Error("남자 참가자 있으나 남복/혼복 미선택");
+  if(W>0 && !allowYeo && !allowMix) throw new Error("여자 참가자 있으나 여복/혼복 미선택");
+  const totalSlots = (M+W)*gpp;
+  if(totalSlots % 4 !== 0) throw new Error(`총슬롯 ${totalSlots}개 ÷ 4 불가 (참가자×게임수가 4의 배수여야 함)`);
+
+  // 1) 단일 종목
+  if(allowNam && !allowYeo && !allowMix){
+    if(W>0) throw new Error("남복만 허용되나 여자 참가자 있음");
+    if(M*gpp % 4 !== 0) throw new Error(`남복 전용: 남자슬롯 ${M*gpp} ÷ 4 불가`);
+    return {nam:M*gpp/4, yeo:0, mix:0};
+  }
+  if(allowYeo && !allowNam && !allowMix){
+    if(M>0) throw new Error("여복만 허용되나 남자 참가자 있음");
+    if(W*gpp % 4 !== 0) throw new Error(`여복 전용: 여자슬롯 ${W*gpp} ÷ 4 불가`);
+    return {nam:0, yeo:W*gpp/4, mix:0};
+  }
+  if(allowMix && !allowNam && !allowYeo){
+    if(M*gpp !== W*gpp) throw new Error(`혼복만 허용: 남(${M})·여(${W}) 수가 같아야 함`);
+    if(M*gpp % 2 !== 0) throw new Error("혼복 전용: 슬롯 ÷ 2 불가");
+    return {nam:0, yeo:0, mix:M*gpp/2};
+  }
+  // 2) 혼복 없음
+  if(!allowMix){
+    if(M*gpp % 4 !== 0 || W*gpp % 4 !== 0) throw new Error(`혼복 없이는 남·여 슬롯이 각각 4의 배수여야 함`);
+    return {nam:M*gpp/4, yeo:W*gpp/4, mix:0};
+  }
+  // 3) 남복 없음 (여복 + 혼복)
+  if(!allowNam){
+    // 남자는 전부 혼복 → Gx = M*gpp/2
+    if(M*gpp % 2 !== 0) throw new Error(`혼복만으로 남자 슬롯 ÷ 2 불가`);
+    const Gx = M*gpp/2;
+    if(Gx*2 > W*gpp) throw new Error("여자 슬롯 부족 (혼복 충족 불가)");
+    const Gy = (W*gpp - 2*Gx)/4;
+    if(Gy<0 || (W*gpp-2*Gx)%4!==0) throw new Error("여복 슬롯 정수해 없음");
+    return {nam:0, yeo:Gy, mix:Gx};
+  }
+  // 4) 여복 없음 (남복 + 혼복)
+  if(!allowYeo){
+    if(W*gpp % 2 !== 0) throw new Error(`혼복만으로 여자 슬롯 ÷ 2 불가`);
+    const Gx = W*gpp/2;
+    if(Gx*2 > M*gpp) throw new Error("남자 슬롯 부족");
+    const Gm = (M*gpp - 2*Gx)/4;
+    if(Gm<0 || (M*gpp-2*Gx)%4!==0) throw new Error("남복 슬롯 정수해 없음");
+    return {nam:Gm, yeo:0, mix:Gx};
+  }
+  // 5) 3종목 모두 허용 — 혼복을 최대한 많이
+  if((M-W)*gpp % 4 !== 0) throw new Error(`남녀 불균형: (${M}-${W})×${gpp} ÷ 4 불가. 인원 또는 게임수 조정 필요`);
+  const maxGx = Math.min(Math.floor(M*gpp/2), Math.floor(W*gpp/2));
+  for(let Gx=maxGx; Gx>=0; Gx--){
+    if((M*gpp - 2*Gx)%4===0 && (W*gpp - 2*Gx)%4===0){
+      return {nam:(M*gpp-2*Gx)/4, yeo:(W*gpp-2*Gx)/4, mix:Gx};
+    }
+  }
+  throw new Error("유효한 종목 분배 불가");
+}
+
+let genSelectedCaseIdx = 0; // 현재 선택된 조합 인덱스
+
+function updateGenPreview(){
+  const {selected, types, gpp} = getGenParams();
+  const box = document.getElementById("genPreviewBox");
+  if(!box) return;
+  const men = selected.filter(m=>m.gender!=="F");
+  const women = selected.filter(m=>m.gender==="F");
+  if(selected.length===0){
+    box.innerHTML = `<div class="muted">참가자를 선택하세요</div>`;
+    genSelectedCaseIdx = -1;
+    return;
+  }
+  if(types.length===0){
+    box.innerHTML = `<div style="color:var(--lose)">⚠ 종목을 1개 이상 선택하세요</div>`;
+    genSelectedCaseIdx = -1;
+    return;
+  }
+  const {cases, reason} = listPerPersonCases(men.length, women.length, gpp,
+    types.includes("남복"), types.includes("여복"), types.includes("혼복"));
+
+  if(cases.length===0){
+    box.innerHTML = `<div style="color:var(--lose)">⚠ ${escapeHtml(reason)}</div>`;
+    genSelectedCaseIdx = -1;
+    return;
+  }
+
+  if(genSelectedCaseIdx<0 || genSelectedCaseIdx>=cases.length) genSelectedCaseIdx = 0;
+
+  let html = `
+    <div style="font-weight:700;margin-bottom:6px">👤 인당 경우의 수 (${cases.length}가지)</div>
+    <div class="row" style="gap:10px;flex-wrap:wrap;font-size:12px;margin-bottom:8px">
+      <span>참가자 <b>${selected.length}</b>명 (남 ${men.length}/여 ${women.length})</span>
+      <span>인당 <b>${gpp}</b>게임</span>
+    </div>
+    <div style="max-height:340px;overflow:auto;background:#fff;border:1px solid #fde68a;border-radius:6px">`;
+
+  const fmtGroupMen = (g)=>{
+    const parts = [];
+    if(g.a>0) parts.push(`<span class="tag m">남복 ${g.a}</span>`);
+    if(g.b>0) parts.push(`<span class="tag" style="background:#f3e8ff;color:#7c3aed">혼복 ${g.b}</span>`);
+    return parts.join(" + ") || `<span class="muted">-</span>`;
+  };
+  const fmtGroupWomen = (g)=>{
+    const parts = [];
+    if(g.c>0) parts.push(`<span class="tag" style="background:#fce7f3;color:#be185d">여복 ${g.c}</span>`);
+    if(g.d>0) parts.push(`<span class="tag" style="background:#f3e8ff;color:#7c3aed">혼복 ${g.d}</span>`);
+    return parts.join(" + ") || `<span class="muted">-</span>`;
+  };
+
+  cases.forEach((c,i)=>{
+    const isActive = i===genSelectedCaseIdx;
+
+    const totalTags = [];
+    if(c.namGames>0) totalTags.push(`남복 ${c.namGames}`);
+    if(c.yeoGames>0) totalTags.push(`여복 ${c.yeoGames}`);
+    if(c.mixGames>0) totalTags.push(`혼복 ${c.mixGames}`);
+    const totalGames = c.namGames+c.yeoGames+c.mixGames;
+
+    const character = c.uniform ? "균등" : "비균등";
+    const charColor = c.uniform ? "var(--win)" : "var(--warn)";
+
+    // 남자 그룹 라인
+    let menLines = "";
+    if(c.menSplit){
+      if(c.menSplit.uniform){
+        const g = c.menSplit.groups[0];
+        menLines = `<div>🧑 남자 ${g.count}명: ${fmtGroupMen(g)} = <b>${gpp}게임</b></div>`;
+      } else {
+        menLines = c.menSplit.groups.map(g=>
+          `<div>🧑 남자 <b>${g.count}명</b>: ${fmtGroupMen(g)} = ${gpp}게임</div>`).join("");
+      }
+    }
+    let womenLines = "";
+    if(c.womenSplit){
+      if(c.womenSplit.uniform){
+        const g = c.womenSplit.groups[0];
+        womenLines = `<div>👩 여자 ${g.count}명: ${fmtGroupWomen(g)} = <b>${gpp}게임</b></div>`;
+      } else {
+        womenLines = c.womenSplit.groups.map(g=>
+          `<div>👩 여자 <b>${g.count}명</b>: ${fmtGroupWomen(g)} = ${gpp}게임</div>`).join("");
+      }
+    }
+
+    html += `
+      <label style="display:block;padding:10px 12px;border-bottom:1px solid #f3f4f6;cursor:pointer;${isActive?"background:#fef3c7":""}">
+        <div class="row" style="gap:8px;align-items:center">
+          <input type="radio" name="genCase" value="${i}" ${isActive?"checked":""} onchange="genSelectCase(${i})"/>
+          <b>${i+1}안</b>
+          <span style="color:${charColor};font-size:11px;font-weight:600">[${character}]</span>
+          <span style="margin-left:auto;font-size:11px;color:var(--sub)">${totalTags.join(" · ")} · 총 ${totalGames}게임</span>
+        </div>
+        <div style="margin-left:22px;margin-top:6px;display:grid;gap:3px;font-size:13px">
+          ${menLines}
+          ${womenLines}
+        </div>
+      </label>`;
+  });
+  html += `</div>
+    <div class="muted" style="margin-top:6px;font-size:11px">
+      · <span style="color:var(--win)">균등</span>: 모두 동일 배정 · <span style="color:var(--warn)">비균등</span>: 일부만 조금 다름
+    </div>`;
+  box.innerHTML = html;
+}
+function genSelectCase(i){
+  genSelectedCaseIdx = i;
+  updateGenPreview();
+}
+
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]] = [arr[j],arr[i]];
+  }
+  return arr;
+}
+
+/* 남은 게임수 기준 우선 + 랜덤 타이브레이크 */
+function pickN(remMap, n){
+  const entries = Object.entries(remMap).filter(([_,v])=>v>0);
+  if(entries.length<n) throw new Error(`선수 부족: ${n}명 필요, ${entries.length}명 남음`);
+  // 먼저 랜덤으로 셔플, 그 다음 남은 게임수 내림차순 정렬 (동률은 랜덤 유지)
+  shuffle(entries);
+  entries.sort((a,b)=>b[1]-a[1]);
+  return entries.slice(0,n).map(([name])=>name);
+}
+
+function generateRandomGames(selected, types, gpp, chosenCase){
+  const men = selected.filter(m=>m.gender!=="F");
+  const women = selected.filter(m=>m.gender==="F");
+
+  let c = chosenCase;
+  if(!c){
+    const r = listAllCases(men.length, women.length, gpp,
+      types.includes("남복"), types.includes("여복"), types.includes("혼복"));
+    if(r.cases.length===0) throw new Error(r.reason||"배정 불가");
+    c = r.cases[0];
+  }
+
+  // 각 선수에게 쿼터 할당 (그룹별로 분배)
+  const menNam = {};
+  const menMix = {};
+  const wmnYeo = {};
+  const wmnMix = {};
+
+  if(c.menSplit){
+    // 남자를 랜덤 순서로 섞은 후, 그룹 크기대로 쿼터 배분
+    const shuffled = [...men]; shuffle(shuffled);
+    let idx = 0;
+    c.menSplit.groups.forEach(grp=>{
+      for(let i=0;i<grp.count;i++){
+        const p = shuffled[idx++];
+        menNam[p.name] = grp.a;
+        menMix[p.name] = grp.b;
+      }
+    });
+  }
+  if(c.womenSplit){
+    const shuffled = [...women]; shuffle(shuffled);
+    let idx = 0;
+    c.womenSplit.groups.forEach(grp=>{
+      for(let i=0;i<grp.count;i++){
+        const p = shuffled[idx++];
+        wmnYeo[p.name] = grp.c;
+        wmnMix[p.name] = grp.d;
+      }
+    });
+  }
+
+  // 게임 순서 섞기
+  const gameTypes = [];
+  for(let i=0;i<c.namGames;i++) gameTypes.push("남복");
+  for(let i=0;i<c.yeoGames;i++) gameTypes.push("여복");
+  for(let i=0;i<c.mixGames;i++) gameTypes.push("혼복");
+  shuffle(gameTypes);
+
+  const games = [];
+  gameTypes.forEach(type=>{
+    let t1=["",""], t2=["",""];
+    if(type==="남복"){
+      const picked = pickN(menNam, 4);
+      shuffle(picked);
+      t1=[picked[0],picked[1]]; t2=[picked[2],picked[3]];
+      picked.forEach(n=>menNam[n]--);
+    } else if(type==="여복"){
+      const picked = pickN(wmnYeo, 4);
+      shuffle(picked);
+      t1=[picked[0],picked[1]]; t2=[picked[2],picked[3]];
+      picked.forEach(n=>wmnYeo[n]--);
+    } else {
+      const m = pickN(menMix, 2);
+      const w = pickN(wmnMix, 2);
+      shuffle(m); shuffle(w);
+      t1=[m[0], w[0]]; t2=[m[1], w[1]];
+      m.forEach(n=>menMix[n]--);
+      w.forEach(n=>wmnMix[n]--);
+    }
+    games.push({t1a:t1[0],t1b:t1[1],t2a:t2[0],t2b:t2[1],s1:"",s2:"",type});
+  });
+
+  return {games, counts:{nam:c.namGames, yeo:c.yeoGames, mix:c.mixGames}, chosenCase:c};
+}
+
+function runGenBracket(reshuffleOnly){
+  const {selected, types, gpp} = getGenParams();
+  if(selected.length===0){ alert("참가자를 선택하세요"); return; }
+  if(types.length===0){ alert("종목을 선택하세요"); return; }
+
+  const men = selected.filter(m=>m.gender!=="F");
+  const women = selected.filter(m=>m.gender==="F");
+  const {cases, reason} = listAllCases(men.length, women.length, gpp,
+    types.includes("남복"), types.includes("여복"), types.includes("혼복"));
+  if(cases.length===0){ alert("가능한 배정 없음:\n"+reason); return; }
+  if(genSelectedCaseIdx<0 || genSelectedCaseIdx>=cases.length) genSelectedCaseIdx = 0;
+  const chosen = cases[genSelectedCaseIdx];
+
+  let result;
+  try{ result = generateRandomGames(selected, types, gpp, chosen); }
+  catch(err){ alert("생성 실패:\n"+err.message); return; }
+
+  const describe = (split, gender)=>{
+    if(!split) return "";
+    const label = gender==="M" ? "남자" : "여자";
+    return split.groups.map(g=>{
+      const parts = gender==="M"
+        ? [g.a>0?`남복${g.a}`:null, g.b>0?`혼복${g.b}`:null].filter(Boolean)
+        : [g.c>0?`여복${g.c}`:null, g.d>0?`혼복${g.d}`:null].filter(Boolean);
+      return `${label} ${g.count}명: ${parts.join("+")}=${gpp}`;
+    }).join("\n");
+  };
+  const msg = `${genSelectedCaseIdx+1}안 [${chosen.uniform?"균등":"비균등"}] 적용\n` +
+    `${describe(chosen.menSplit,"M")}\n${describe(chosen.womenSplit,"F")}\n` +
+    `총 ${result.games.length}게임 (남복 ${chosen.namGames} · 여복 ${chosen.yeoGames} · 혼복 ${chosen.mixGames})\n\n` +
+    (reshuffleOnly?"같은 조합으로 다시 섞습니다.":"현재 대진표를 교체합니다. 계속?");
+  if(!confirm(msg)) return;
+
+  // state.players = 선택된 참가자 (isGuest 보존)
+  state.players = selected.map(m=>({
+    name:m.name, isGuest:m.isGuest||false,
+    cock:"", mf:"", mx:"", donation:""
+  }));
+  state.games = result.games;
+  persist(); renderAll();
+  switchTab("games");
+  alert(`✓ 랜덤 대진 생성 완료\n총 ${result.games.length}게임`);
+}
+
+/* ============ 명단 편집 도구 ============ */
+function getAllNamesInUse(){
+  const set = new Set();
+  state.players.forEach(p=>{ if(p.name) set.add(p.name); });
+  state.games.forEach(g=>{
+    [g.t1a,g.t1b,g.t2a,g.t2b].forEach(n=>{ if(n) set.add(n); });
+  });
+  return [...set].sort((a,b)=>a.localeCompare(b,"ko"));
+}
+function renderEditTools(){
+  // 이름 드롭다운
+  const sel = document.getElementById("renameOld");
+  if(sel){
+    const cur = sel.value;
+    const names = getAllNamesInUse();
+    sel.innerHTML = `<option value="">-- 기존 이름 선택 --</option>` +
+      names.map(n=>`<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join("");
+    if(names.includes(cur)) sel.value = cur;
+  }
+  // 출전자 명단 순서 편집
+  const box = document.getElementById("rosterEditBox");
+  if(box){
+    if(state.players.length===0){
+      box.innerHTML = `<div class="muted" style="font-size:12px">등록된 출전자 없음. 회원에서 선택 또는 직접 입력하세요.</div>`;
+    } else {
+      box.innerHTML = state.players.map((p,i)=>`
+        <div class="row" style="padding:4px;border-bottom:1px solid #f3f4f6">
+          <span style="width:26px;text-align:center;color:var(--sub);font-weight:700">${i+1}</span>
+          <input type="text" value="${escapeAttr(p.name)}" onchange="editRosterName(${i},this.value)" style="flex:1;min-width:80px;font-size:12px;padding:4px 6px"/>
+          <label style="font-size:11px"><input type="checkbox" ${p.isGuest?"checked":""} onchange="editRosterGuest(${i},this.checked)"/>비회원</label>
+          <button class="btn sec small" onclick="moveRoster(${i},-1)" ${i===0?"disabled":""}>↑</button>
+          <button class="btn sec small" onclick="moveRoster(${i},1)" ${i===state.players.length-1?"disabled":""}>↓</button>
+          <button class="btn danger small" onclick="deleteRoster(${i})">✕</button>
+        </div>`).join("");
+    }
+  }
+}
+function bulkRename(){
+  const oldName = document.getElementById("renameOld").value;
+  const newName = document.getElementById("renameNew").value.trim();
+  if(!oldName || !newName){ alert("기존/새 이름 모두 입력"); return; }
+  if(oldName===newName){ alert("동일한 이름"); return; }
+  let gameHits = 0, rosterHits = 0;
+  state.games.forEach(g=>{
+    ["t1a","t1b","t2a","t2b"].forEach(k=>{
+      if(g[k]===oldName){ g[k]=newName; gameHits++; }
+    });
+  });
+  state.players.forEach(p=>{
+    if(p.name===oldName){ p.name=newName; rosterHits++; }
+  });
+  document.getElementById("renameNew").value="";
+  persist(); renderAll();
+  alert(`치환 완료: 게임 ${gameHits}건, 출전자 ${rosterHits}건`);
+}
+function editRosterName(i,val){
+  val = val.trim();
+  if(!val){ deleteRoster(i); return; }
+  const old = state.players[i].name;
+  state.players[i].name = val;
+  // 게임 내에서도 같이 변경할지 물어봄
+  if(old && old!==val){
+    let gameHits = 0;
+    state.games.forEach(g=>{
+      ["t1a","t1b","t2a","t2b"].forEach(k=>{
+        if(g[k]===old){ gameHits++; }
+      });
+    });
+    if(gameHits>0 && confirm(`게임 안에 "${old}" ${gameHits}건 있음. 함께 "${val}"로 변경할까요?`)){
+      state.games.forEach(g=>{
+        ["t1a","t1b","t2a","t2b"].forEach(k=>{
+          if(g[k]===old) g[k]=val;
+        });
+      });
+    }
+  }
+  persist(); renderAll();
+}
+function editRosterGuest(i,v){ state.players[i].isGuest = v; persist(); renderAll(); }
+function moveRoster(i,dir){
+  const j = i+dir;
+  if(j<0||j>=state.players.length) return;
+  const tmp = state.players[i]; state.players[i]=state.players[j]; state.players[j]=tmp;
+  persist(); renderAll();
+}
+function deleteRoster(i){
+  const p = state.players[i];
+  if(!p) return;
+  if(!confirm(`출전자 "${p.name}" 제거?\n(게임 안 이름은 건드리지 않음)`)) return;
+  state.players.splice(i,1);
+  persist(); renderAll();
+}
+function insertGameRow(){
+  const n = parseInt(document.getElementById("rowOpNum").value);
+  if(!n||n<1){ alert("행 번호 입력"); return; }
+  const idx = Math.min(n-1, state.games.length);
+  state.games.splice(idx, 0, blankGame());
+  persist(); renderAll();
+}
+function deleteGameRow(){
+  const n = parseInt(document.getElementById("rowOpNum").value);
+  if(!n||n<1||n>state.games.length){ alert("유효한 행 번호"); return; }
+  const g = state.games[n-1];
+  const hasData = g.t1a||g.t1b||g.t2a||g.t2b||g.s1||g.s2;
+  if(hasData && !confirm(`${n}번 게임 삭제? (데이터 있음)`)) return;
+  state.games.splice(n-1,1);
+  persist(); renderAll();
+}
+function removeEmptyGames(){
+  const before = state.games.length;
+  state.games = state.games.filter(g=>g.t1a||g.t1b||g.t2a||g.t2b||g.s1||g.s2);
+  // 출전자 수보다 작아지면 출전자 수만큼은 유지
+  while(state.games.length < state.players.length) state.games.push(blankGame());
+  persist(); renderAll();
+  alert(`${before - state.games.length}개 빈 행 제거`);
+}
+function resetAllScores(){
+  if(!confirm("모든 점수를 초기화하시겠습니까? (명단/종목 유지)")) return;
+  state.games.forEach(g=>{ g.s1=""; g.s2=""; });
+  persist(); renderAll();
+}
+function clearAllGames(){
+  if(!confirm("⚠ 모든 게임 데이터 삭제 (이름/점수/종목 전부).\n명단(출전자)는 유지됩니다. 계속?")) return;
+  state.games = Array.from({length:Math.max(18,state.players.length)}, blankGame);
+  persist(); renderAll();
+}
+
+/* 출전자 셀 편집 — state.players[i]와 동기화 (기존 필드 보존) */
+function setRoster(i, name){
+  name = name.trim();
+  const members = getMembers();
+  const memberInfo = Object.values(members).find(m=>m.name===name);
+  if(!name){
+    if(state.players[i]) state.players.splice(i,1);
+  } else {
+    const existing = state.players[i] || {};
+    const isGuest = memberInfo ? memberInfo.isGuest : (existing.isGuest||false);
+    while(state.players.length < i) state.players.push({name:"",isGuest:false,cock:"",mf:"",mx:"",donation:""});
+    state.players[i] = {
+      ...existing,
+      name, isGuest,
+      cock: existing.cock||"", mf: existing.mf||"", mx: existing.mx||"", donation: existing.donation||""
+    };
+  }
+  state.players = state.players.filter(p=>p.name);
+  persist(); renderPlayers(); renderGamesTable();
+}
+function setGame(i,key,val){ state.games[i][key] = val; persist(); renderGamesTable(); }
+
+/* ============ 통계 계산 ============ */
+function computeStats(meet){
+  // 반환: {byPlayer:{name:{played,wins,losses,ptsFor,ptsAgainst,types:{남,여,혼},cockCount}}, games:[{...+winner/loser/valid}], totals}
+  const byPlayer = {};
+  const ensure = n=>{ if(!byPlayer[n]) byPlayer[n] = {name:n,played:0,wins:0,losses:0,ties:0,ptsFor:0,ptsAgainst:0,types:{"남":0,"여":0,"혼":0},cockCount:0}; return byPlayer[n]; };
+  meet.players.forEach(p=>ensure(p.name));
+  const games = meet.games.map((g,idx)=>{
+    const s1 = parseInt(g.s1), s2 = parseInt(g.s2);
+    const team1 = [g.t1a,g.t1b].filter(Boolean);
+    const team2 = [g.t2a,g.t2b].filter(Boolean);
+    const valid = team1.length===2 && team2.length===2 && !isNaN(s1) && !isNaN(s2);
+    const info = {idx:idx+1,team1,team2,s1,s2,type:g.type,cock:parseInt(g.cock)||0,valid,winner:null};
+    if(!valid) return info;
+    info.winner = s1>s2?1:s2>s1?2:0;
+    const winners = info.winner===1?team1:info.winner===2?team2:[];
+    const losers = info.winner===1?team2:info.winner===2?team1:[];
+    [...team1,...team2].forEach(n=>{
+      const p = ensure(n); p.played++; p.types[g.type]=(p.types[g.type]||0)+1;
+    });
+    team1.forEach(n=>{ensure(n).ptsFor+=s1; ensure(n).ptsAgainst+=s2});
+    team2.forEach(n=>{ensure(n).ptsFor+=s2; ensure(n).ptsAgainst+=s1});
+    if(info.winner===0){ [...team1,...team2].forEach(n=>ensure(n).ties++); }
+    else{
+      winners.forEach(n=>ensure(n).wins++);
+      losers.forEach(n=>ensure(n).losses++);
+    }
+    return info;
+  });
+  // 콕 기여: 각 게임의 cock 개수를 회원/비회원 규칙으로 분담한다는 뜻이지만
+  // 여기서는 "게임 cock 개수" 필드가 총 사용 콕이라고 보고 참고 표기.
+  // 개인별 콕 '부담 의무' = 출전 게임수 기반 (회원 2/비회원 3 규칙은 별도 계산)
+  meet.players.forEach(p=>{
+    const st = ensure(p.name);
+    st.cockDuty = st.played * (p.isGuest?3:2); // 출전 1게임당 부담 콕 수 누적 의무
+    st.isGuest = p.isGuest;
+  });
+  return {byPlayer,games};
+}
+function ranked(stats){
+  const arr = Object.values(stats.byPlayer).filter(p=>p.played>0);
+  arr.forEach(p=>{p.diff=p.ptsFor-p.ptsAgainst; p.winRate = p.played?+(p.wins/p.played*100).toFixed(1):0});
+  arr.sort((a,b)=> b.wins-a.wins || b.diff-a.diff || b.ptsFor-a.ptsFor || a.name.localeCompare(b.name,"ko"));
+  return arr;
+}
+
+/* ============ 렌더: 순위 ============ */
+function renderRank(){
+  const stats = computeStats(state);
+  const arr = ranked(stats);
+  const box = document.getElementById("rankBox");
+  if(arr.length===0){box.innerHTML=`<div class="muted">아직 유효 경기결과가 없습니다.</div>`;return}
+  box.innerHTML = rankTableHTML(arr);
+}
+function rankTableHTML(arr){
+  let h = `<table class="stats-table"><thead><tr>
+    <th style="width:32px">#</th><th>이름</th><th>출</th><th>승</th><th>패</th>
+    <th>승률</th><th>득실</th><th>벌금</th></tr></thead><tbody>`;
+  arr.forEach((p,i)=>{
+    h += `<tr>
+      <td>${i+1}</td>
+      <td style="text-align:left;padding-left:8px">${escapeHtml(p.name)} ${p.isGuest?'<span class="tag g">비</span>':'<span class="tag m">회</span>'}</td>
+      <td>${p.played}</td>
+      <td class="tag w" style="border:0">${p.wins}</td>
+      <td class="tag l" style="border:0">${p.losses}</td>
+      <td>${p.winRate}%</td>
+      <td>${p.diff>=0?"+"+p.diff:p.diff}</td>
+      <td class="fine-cell">${(p.losses*FINE_PER_LOSS).toLocaleString()}원</td>
+    </tr>`;
+  });
+  h += `</tbody></table>`;
+  const totalFine = arr.reduce((s,p)=>s+p.losses*FINE_PER_LOSS,0);
+  h += `<div class="row" style="margin-top:8px;justify-content:space-between">
+    <span class="muted">총 벌금 합계</span>
+    <b class="fine-cell">${totalFine.toLocaleString()}원</b></div>`;
+  return h;
+}
+
+/* ============ 렌더: 개인기록 ============ */
+function renderPlayerStats(){
+  const stats = computeStats(state);
+  const arr = ranked(stats);
+  const box = document.getElementById("playerStatsBox");
+  if(arr.length===0){box.innerHTML=`<div class="muted">경기결과 없음.</div>`;return}
+  let h = `<table class="stats-table"><thead><tr>
+    <th>이름</th><th>출</th><th>승</th><th>패</th><th>득</th><th>실</th>
+    <th>남</th><th>여</th><th>혼</th><th>콕의무</th><th>벌금</th></tr></thead><tbody>`;
+  arr.forEach(p=>{
+    h += `<tr><td style="text-align:left;padding-left:8px">${escapeHtml(p.name)} ${p.isGuest?'<span class="tag g">비</span>':'<span class="tag m">회</span>'}</td>
+      <td>${p.played}</td><td>${p.wins}</td><td>${p.losses}</td>
+      <td>${p.ptsFor}</td><td>${p.ptsAgainst}</td>
+      <td>${p.types["남"]||0}</td><td>${p.types["여"]||0}</td><td>${p.types["혼"]||0}</td>
+      <td>${p.cockDuty}</td>
+      <td class="fine-cell">${(p.losses*FINE_PER_LOSS).toLocaleString()}</td></tr>`;
+  });
+  h += `</tbody></table>
+    <div class="muted" style="margin-top:6px">
+      · 콕의무 = 출전게임수 × (회원 2 / 비회원 3)<br>
+      · 벌금 = 패배수 × ${FINE_PER_LOSS.toLocaleString()}원
+    </div>`;
+  box.innerHTML = h;
+}
+
+/* ============ 저장/불러오기 ============ */
+function getMeets(){ try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}")}catch(e){return{}} }
+function setMeets(o){ localStorage.setItem(STORAGE_KEY, JSON.stringify(o)); }
+function meetKey(s){ return `${s.date}_${s.name||"meet"}`; }
+
+function saveMeet(){
+  syncStateFromInputs();
+  if(!state.date){alert("일자를 입력하세요");return}
+  const meets = getMeets();
+  const key = meetKey(state);
+  meets[key] = JSON.parse(JSON.stringify(state));
+  setMeets(meets); persist();
+  alert(`저장 완료: ${key}`);
+}
+function loadMeetPicker(){
+  const meets = getMeets();
+  const keys = Object.keys(meets).sort().reverse();
+  if(keys.length===0){alert("저장된 대회가 없습니다.");return}
+  const k = prompt("불러올 대회 선택:\n\n"+keys.map((x,i)=>`${i+1}. ${x}`).join("\n")+"\n\n번호 입력:");
+  const idx = parseInt(k);
+  if(!idx||idx<1||idx>keys.length) return;
+  state = JSON.parse(JSON.stringify(meets[keys[idx-1]]));
+  persist(); renderAll();
+  alert("불러옴: "+keys[idx-1]);
+}
+function renderMeetList(){
+  const meets = getMeets();
+  const keys = Object.keys(meets).sort().reverse();
+  const box = document.getElementById("meetList");
+  if(keys.length===0){box.innerHTML=`<div class="muted">저장된 대회 없음.</div>`;return}
+  let h = `<table class="stats-table"><thead><tr><th>키</th><th>참가</th><th>게임</th><th>동작</th></tr></thead><tbody>`;
+  keys.forEach(k=>{
+    const m = meets[k];
+    const valid = m.games.filter(g=>g.t1a&&g.t1b&&g.t2a&&g.t2b&&g.s1!==""&&g.s2!=="").length;
+    h += `<tr>
+      <td style="text-align:left;padding-left:8px">${escapeHtml(k)}</td>
+      <td>${m.players.length}</td>
+      <td>${valid}/${m.games.length}</td>
+      <td>
+        <button class="btn sec small" onclick='loadMeetByKey(${JSON.stringify(k)})'>열기</button>
+        <button class="btn danger small" onclick='deleteMeet(${JSON.stringify(k)})'>삭제</button>
+      </td></tr>`;
+  });
+  h += `</tbody></table>`;
+  box.innerHTML = h;
+}
+function loadMeetByKey(k){
+  const meets = getMeets();
+  if(!meets[k]){alert("없음");return}
+  state = JSON.parse(JSON.stringify(meets[k]));
+  persist(); renderAll();
+  switchTab("games");
+}
+function deleteMeet(k){
+  if(!confirm(`${k} 삭제?`)) return;
+  const meets = getMeets(); delete meets[k]; setMeets(meets);
+  renderMeetList();
+}
+function resetMeet(){
+  if(!confirm("현재 편집중인 대회 초기화? (저장분 유지)")) return;
+  state = defaultState(); persist(); renderAll();
+}
+function exportJSON(){
+  const data = {current:state, meets:getMeets()};
+  const blob = new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `ssob_backup_${state.date}.json`; a.click();
+  URL.revokeObjectURL(url);
+}
+function importJSON(e){
+  const file = e.target.files[0]; if(!file) return;
+  const r = new FileReader();
+  r.onload = ev=>{
+    try{
+      const d = JSON.parse(ev.target.result);
+      if(d.meets) setMeets({...getMeets(),...d.meets});
+      if(d.current && confirm("가져온 파일의 '현재 대회'로 교체할까요?")) {state = d.current; persist();}
+      renderAll(); alert("가져오기 완료");
+    }catch(err){alert("파일 오류: "+err.message)}
+  };
+  r.readAsText(file);
+}
+
+/* ============ 누적 통계 ============ */
+function renderHistory(){
+  const range = document.getElementById("histRange").value;
+  const meets = getMeets();
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  const filtered = Object.values(meets).filter(mt=>{
+    if(range==="all") return true;
+    const d = new Date(mt.date);
+    if(range==="year") return d.getFullYear()===y;
+    if(range==="month") return d.getFullYear()===y && d.getMonth()===m;
+    return true;
+  });
+  if(filtered.length===0){document.getElementById("histBox").innerHTML=`<div class="muted">해당 기간 대회 없음.</div>`;return}
+  const agg = {};
+  const ensure = n=>{ if(!agg[n]) agg[n] = {name:n,played:0,wins:0,losses:0,ptsFor:0,ptsAgainst:0,meets:0}; return agg[n]; };
+  filtered.forEach(mt=>{
+    const s = computeStats(mt);
+    Object.values(s.byPlayer).forEach(p=>{
+      if(p.played===0) return;
+      const a = ensure(p.name);
+      a.played+=p.played; a.wins+=p.wins; a.losses+=p.losses;
+      a.ptsFor+=p.ptsFor; a.ptsAgainst+=p.ptsAgainst; a.meets++;
+    });
+  });
+  const arr = Object.values(agg);
+  arr.forEach(p=>{p.diff=p.ptsFor-p.ptsAgainst; p.winRate=p.played?+(p.wins/p.played*100).toFixed(1):0});
+  arr.sort((a,b)=>b.wins-a.wins||b.diff-a.diff||b.ptsFor-a.ptsFor);
+  let h = `<div class="muted">대상 대회 ${filtered.length}회</div>
+    <table class="stats-table"><thead><tr><th>#</th><th>이름</th><th>참여</th><th>출</th><th>승</th><th>패</th><th>승률</th><th>득실</th><th>누적벌금</th></tr></thead><tbody>`;
+  arr.forEach((p,i)=>{
+    h += `<tr><td>${i+1}</td><td style="text-align:left;padding-left:8px">${escapeHtml(p.name)}</td>
+      <td>${p.meets}</td><td>${p.played}</td><td>${p.wins}</td><td>${p.losses}</td>
+      <td>${p.winRate}%</td><td>${p.diff>=0?"+"+p.diff:p.diff}</td>
+      <td class="fine-cell">${(p.losses*FINE_PER_LOSS).toLocaleString()}</td></tr>`;
+  });
+  h += `</tbody></table>`;
+  document.getElementById("histBox").innerHTML = h;
+}
+
+/* ============ 공유 이미지 ============ */
+function renderShare(){
+  const b = document.getElementById("shareBracket");
+  const r = document.getElementById("shareRank");
+  // 대진표 이미지
+  let bh = `<h3>${escapeHtml(state.name||"S.S.O.B")} 대진표 (${escapeHtml(state.date)})</h3>
+    <table><thead><tr><th>#</th><th colspan="2">팀1</th><th>점</th><th colspan="2">팀2</th><th>점</th><th>종목</th><th>결과</th></tr></thead><tbody>`;
+  state.games.forEach((g,i)=>{
+    const s1=parseInt(g.s1),s2=parseInt(g.s2);
+    const hasScore=!isNaN(s1)&&!isNaN(s2);
+    const result = !hasScore?"-":s1>s2?"팀1 승":s2>s1?"팀2 승":"무";
+    bh += `<tr>
+      <td>${i+1}</td>
+      <td>${escapeHtml(g.t1a)}</td><td>${escapeHtml(g.t1b)}</td>
+      <td><b>${g.s1||""}</b></td>
+      <td>${escapeHtml(g.t2a)}</td><td>${escapeHtml(g.t2b)}</td>
+      <td><b>${g.s2||""}</b></td>
+      <td>${g.type||""}</td>
+      <td>${result}</td></tr>`;
+  });
+  bh += `</tbody></table>`;
+  b.innerHTML = bh;
+
+  // 순위 이미지
+  const stats = computeStats(state);
+  const arr = ranked(stats);
+  r.innerHTML = `<h3>순위표 (${escapeHtml(state.date)})</h3>` + (arr.length?rankTableHTML(arr):`<div class="muted">결과 없음</div>`);
+}
+/* A4 PDF 출력 */
+function printBracketPdf(mode){
+  // mode: "blank" = 점수/결과 없이, "full" = 저장된 값 포함
+  const stats = computeStats(state);
+  const rowCount = Math.max(state.games.length, state.players.length, 22);
+  while(state.games.length < rowCount) state.games.push(blankGame());
+
+  const showScore = mode==="full";
+  let h = `<div class="print-title">${escapeHtml(state.name||"S.S.O.B")} 대진표 (${escapeHtml(state.date||"")})</div>`;
+  const totalPlayers = state.players.length;
+  const totalMembers = state.players.filter(p=>!p.isGuest).length;
+  h += `<div class="print-meta">참가자 ${totalPlayers}명 (회원 ${totalMembers} / 비회원 ${totalPlayers-totalMembers})</div>`;
+
+  h += `<table class="print-table"><thead>
+    <tr>
+      <th rowspan="2" style="width:6%">게임</th>
+      <th colspan="2" style="width:24%">성명</th>
+      <th rowspan="2" style="width:7%">점수</th>
+      <th colspan="2" style="width:24%">성명</th>
+      <th rowspan="2" style="width:7%">점수</th>
+      <th rowspan="2" style="width:10%">출전자</th>
+      <th rowspan="2" style="width:6%">콕</th>
+      <th colspan="2" style="width:10%">게임수</th>
+      <th rowspan="2" style="width:10%">찬조금</th>
+    </tr>
+    <tr>
+      <th>A</th><th>B</th>
+      <th>A</th><th>B</th>
+      <th>남,여</th><th>혼</th>
+    </tr>
+  </thead><tbody>`;
+
+  for(let i=0;i<rowCount;i++){
+    const g = state.games[i] || blankGame();
+    const s1 = parseInt(g.s1), s2 = parseInt(g.s2);
+    const hasScore = !isNaN(s1)&&!isNaN(s2);
+    const player = state.players[i] || {name:"",isGuest:false,cock:"",mf:"",mx:"",donation:""};
+
+    h += `<tr>
+      <td>${i+1}</td>
+      <td>${escapeHtml(g.t1a||"")}</td>
+      <td>${escapeHtml(g.t1b||"")}</td>
+      <td>${showScore && hasScore ? s1 : ""}</td>
+      <td>${escapeHtml(g.t2a||"")}</td>
+      <td>${escapeHtml(g.t2b||"")}</td>
+      <td>${showScore && hasScore ? s2 : ""}</td>
+      <td>${escapeHtml(player.name||"")}${player.name&&player.isGuest?" *":""}</td>
+      <td>${showScore?escapeHtml(player.cock||""):""}</td>
+      <td>${escapeHtml(player.mf||"")}</td>
+      <td>${escapeHtml(player.mx||"")}</td>
+      <td>${showScore?escapeHtml(player.donation||""):""}</td>
+    </tr>`;
+  }
+  h += `</tbody></table>`;
+  h += `<div class="print-foot">* 비회원 · 빈칸은 대회 당일 수기 기입</div>`;
+
+  // 결과 포함 모드일 때 순위표 추가 페이지
+  if(showScore){
+    const arr = ranked(stats);
+    if(arr.length>0){
+      h += `<div class="page-break"></div>
+        <div class="print-title">순위표 (${escapeHtml(state.date||"")})</div>
+        <table class="print-table"><thead><tr>
+          <th style="width:6%">#</th><th style="width:14%">이름</th><th style="width:6%">구분</th>
+          <th style="width:7%">출전</th><th style="width:6%">승</th><th style="width:6%">패</th>
+          <th style="width:8%">승률</th><th style="width:8%">득실</th>
+          <th style="width:9%">득점</th><th style="width:9%">실점</th>
+          <th style="width:10%">찬조금</th>
+        </tr></thead><tbody>`;
+      arr.forEach((p,i)=>{
+        h += `<tr>
+          <td>${i+1}</td>
+          <td>${escapeHtml(p.name)}</td>
+          <td>${p.isGuest?"비":"회"}</td>
+          <td>${p.played}</td>
+          <td>${p.wins}</td>
+          <td>${p.losses}</td>
+          <td>${p.winRate}%</td>
+          <td>${p.diff>=0?"+"+p.diff:p.diff}</td>
+          <td>${p.ptsFor}</td>
+          <td>${p.ptsAgainst}</td>
+          <td>${(p.losses*FINE_PER_LOSS).toLocaleString()}</td>
+        </tr>`;
+      });
+      const totalFine = arr.reduce((s,p)=>s+p.losses*FINE_PER_LOSS,0);
+      h += `</tbody><tfoot><tr style="font-weight:700;background:#f0f0f0">
+        <td colspan="10">총 찬조금 합계</td>
+        <td>${totalFine.toLocaleString()}원</td>
+      </tr></tfoot></table>`;
+    }
+  }
+
+  document.getElementById("print-area").innerHTML = h;
+  // 잠시 대기 후 인쇄 (렌더링 완료 확보)
+  setTimeout(()=>{
+    window.print();
+  }, 100);
+}
+
+function exportImage(id){
+  const node = document.getElementById(id);
+  html2canvas(node,{backgroundColor:"#ffffff",scale:2}).then(canvas=>{
+    const a = document.createElement("a");
+    a.href = canvas.toDataURL("image/png");
+    a.download = `ssob_${id}_${state.date}.png`;
+    a.click();
+  });
+}
+
+/* ============ 유틸 ============ */
+function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function escapeAttr(s){return escapeHtml(s)}
+function syncStateFromInputs(){
+  state.date = document.getElementById("meetDate").value || state.date;
+  state.name = document.getElementById("meetName").value || state.name;
+  persist();
+}
+function autoFillFromImageHint(){
+  alert("팁:\n1) 먼저 [대회설정]에서 참가자를 모두 등록하세요.\n2) 팀 칸에 이름을 타이핑하면 자동완성됩니다.\n3) 점수 입력시 승자 행에 초록 배경이 표시됩니다.\n4) 하단 '저장'으로 localStorage에 보관됩니다.");
+}
+
+/* ============ 회원 관리 ============ */
+const MEMBERS_KEY = "ssob_members_v1";
+const PAYMENTS_KEY = "ssob_payments_v1";
+let currentMemberId = null;
+
+function getMembers(){ try{return JSON.parse(localStorage.getItem(MEMBERS_KEY)||"{}")}catch(e){return{}} }
+function setMembers(o){ localStorage.setItem(MEMBERS_KEY, JSON.stringify(o)); }
+function getPayments(){ try{return JSON.parse(localStorage.getItem(PAYMENTS_KEY)||"{}")}catch(e){return{}} }
+function setPayments(o){ localStorage.setItem(PAYMENTS_KEY, JSON.stringify(o)); }
+function genId(){ return "m_"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+
+function addMember(){
+  const name = document.getElementById("mNewName").value.trim();
+  if(!name){ alert("이름 입력"); return; }
+  const members = getMembers();
+  if(Object.values(members).some(m=>m.name===name && m.active!==false)){ alert("동명 회원 존재"); return; }
+  const id = genId();
+  members[id] = {
+    id, name,
+    gender: document.getElementById("mNewGender").value,
+    isGuest: document.getElementById("mNewGuest").checked,
+    phone: document.getElementById("mNewPhone").value.trim(),
+    note: document.getElementById("mNewNote").value.trim(),
+    joinDate: new Date().toISOString().slice(0,10),
+    active: true
+  };
+  setMembers(members);
+  ["mNewName","mNewPhone","mNewNote"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("mNewGuest").checked=false;
+  document.getElementById("mNewName").focus();
+  renderMembers(); renderFines();
+}
+/* 출전자 명단에서 회원 등록 */
+let importCandidates = []; // [{name, meetCount, isGuestHint, gender, selected}]
+
+function openImportFromMeets(){
+  const members = Object.values(getMembers());
+  const registered = new Set(members.map(m=>m.name));
+  // 이름별 수집: 출전대회 수 + isGuest 힌트
+  const byName = {};
+  const record = (name, isGuest)=>{
+    if(!name || !/^[\uAC00-\uD7A3]{2,5}$/.test(name)) return;
+    if(registered.has(name)) return;
+    if(!byName[name]) byName[name] = {name, meetCount:0, isGuestVotes:0, totalVotes:0};
+    byName[name].totalVotes++;
+    if(isGuest) byName[name].isGuestVotes++;
+  };
+  // 저장된 대회들
+  const meets = getMeets();
+  Object.values(meets).forEach(mt=>{
+    const seen = new Set();
+    (mt.players||[]).forEach(p=>{
+      if(!seen.has(p.name)){ seen.add(p.name); record(p.name, p.isGuest); }
+      if(byName[p.name]) byName[p.name].meetCount++;
+    });
+    // 게임 내 이름도 혹시 플레이어 목록에 없는 경우 보강
+    (mt.games||[]).forEach(g=>{
+      [g.t1a,g.t1b,g.t2a,g.t2b].forEach(n=>{
+        if(n && !seen.has(n)){ seen.add(n); record(n, false); if(byName[n]) byName[n].meetCount++; }
+      });
+    });
+  });
+  // 현재 편집 중 대회
+  const seenCur = new Set();
+  (state.players||[]).forEach(p=>{
+    if(!seenCur.has(p.name)){ seenCur.add(p.name); record(p.name, p.isGuest); }
+    if(byName[p.name]) byName[p.name].meetCount = Math.max(byName[p.name].meetCount, 1);
+  });
+  (state.games||[]).forEach(g=>{
+    [g.t1a,g.t1b,g.t2a,g.t2b].forEach(n=>{
+      if(n && !seenCur.has(n)){ seenCur.add(n); record(n, false); }
+    });
+  });
+
+  importCandidates = Object.values(byName)
+    .map(c=>({
+      name: c.name,
+      meetCount: c.meetCount,
+      isGuestHint: c.totalVotes>0 && c.isGuestVotes/c.totalVotes >= 0.5,
+      gender: "M",
+      selected: true
+    }))
+    .sort((a,b)=>b.meetCount-a.meetCount || a.name.localeCompare(b.name,"ko"));
+
+  if(importCandidates.length===0){
+    alert("가져올 미등록 이름이 없습니다.\n(모두 이미 회원 등록 완료)");
+    return;
+  }
+  renderImportBox();
+  document.getElementById("importCard").classList.remove("hidden");
+  document.getElementById("importCard").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function closeImportFromMeets(){
+  document.getElementById("importCard").classList.add("hidden");
+  importCandidates = [];
+}
+function renderImportBox(){
+  const box = document.getElementById("importBox");
+  let h = `<table class="stats-table"><thead><tr>
+    <th style="width:30px"><input type="checkbox" onchange="importAll(this.checked)" ${importCandidates.every(c=>c.selected)?"checked":""} /></th>
+    <th>이름</th><th>출전</th><th>성별</th><th>구분</th></tr></thead><tbody>`;
+  importCandidates.forEach((c,i)=>{
+    h += `<tr>
+      <td><input type="checkbox" ${c.selected?"checked":""} onchange="importToggle(${i},this.checked)"/></td>
+      <td style="text-align:left;padding-left:8px">${escapeHtml(c.name)}</td>
+      <td>${c.meetCount}회</td>
+      <td>
+        <label style="margin-right:6px"><input type="radio" name="gen_${i}" ${c.gender==="M"?"checked":""} onchange="importSet(${i},'gender','M')"/>남</label>
+        <label><input type="radio" name="gen_${i}" ${c.gender==="F"?"checked":""} onchange="importSet(${i},'gender','F')"/>여</label>
+      </td>
+      <td>
+        <label><input type="checkbox" ${c.isGuestHint?"checked":""} onchange="importSet(${i},'isGuestHint',this.checked)"/>비회원</label>
+      </td></tr>`;
+  });
+  h += `</tbody></table>
+    <div class="muted" style="margin-top:6px">총 ${importCandidates.length}명 미등록 · 선택됨 <b id="importSelCount">${importCandidates.filter(c=>c.selected).length}</b>명</div>`;
+  box.innerHTML = h;
+}
+function importToggle(i,v){
+  importCandidates[i].selected = v;
+  const sel = importCandidates.filter(c=>c.selected).length;
+  const el = document.getElementById("importSelCount");
+  if(el) el.textContent = sel;
+}
+function importAll(on){
+  importCandidates.forEach(c=>c.selected=on);
+  renderImportBox();
+}
+function importSet(i,key,val){
+  importCandidates[i][key] = val;
+}
+function importSetAllGender(g){
+  importCandidates.forEach(c=>c.gender=g);
+  renderImportBox();
+}
+function applyImport(){
+  const chosen = importCandidates.filter(c=>c.selected);
+  if(chosen.length===0){ alert("선택된 이름 없음"); return; }
+  const members = getMembers();
+  const today = new Date().toISOString().slice(0,10);
+  let added = 0;
+  chosen.forEach(c=>{
+    // 동명 중복 방지
+    if(Object.values(members).some(m=>m.name===c.name && m.active!==false)) return;
+    const id = genId();
+    members[id] = {
+      id, name: c.name,
+      gender: c.gender,
+      isGuest: !!c.isGuestHint,
+      phone: "", note: "출전자 명단에서 자동 등록",
+      joinDate: today,
+      active: true
+    };
+    added++;
+  });
+  setMembers(members);
+  closeImportFromMeets();
+  renderMembers(); renderFines();
+  alert(`${added}명 회원 등록 완료`);
+}
+
+function bulkAddMembers(){
+  const text = document.getElementById("mBulkText").value.trim();
+  if(!text) return;
+  const members = getMembers();
+  const existing = new Set(Object.values(members).filter(m=>m.active!==false).map(m=>m.name));
+  let added = 0, skipped = 0;
+  text.split("\n").forEach(line=>{
+    const parts = line.split(",").map(s=>s.trim());
+    if(!parts[0]) return;
+    if(existing.has(parts[0])){ skipped++; return; }
+    const id = genId();
+    members[id] = {
+      id, name: parts[0],
+      gender: (parts[1]||"M").toUpperCase()==="F"?"F":"M",
+      isGuest: parts[2]==="0",
+      phone:"", note:"",
+      joinDate: new Date().toISOString().slice(0,10),
+      active: true
+    };
+    existing.add(parts[0]); added++;
+  });
+  setMembers(members);
+  document.getElementById("mBulkText").value="";
+  renderMembers(); renderFines();
+  alert(`추가 ${added}명, 중복건너뜀 ${skipped}명`);
+}
+function toggleMemberActive(id){
+  const m = getMembers();
+  if(!m[id]) return;
+  m[id].active = m[id].active===false ? true : false;
+  setMembers(m); renderMembers(); renderFines();
+}
+function toggleMemberGuest(id){
+  const m = getMembers();
+  if(!m[id]) return;
+  m[id].isGuest = !m[id].isGuest;
+  setMembers(m); renderMembers();
+}
+function deleteMember(id){
+  const m = getMembers();
+  if(!m[id]) return;
+  if(!confirm(`${m[id].name} 삭제? (입금 기록도 함께 삭제)`)) return;
+  delete m[id]; setMembers(m);
+  const p = getPayments(); delete p[id]; setPayments(p);
+  renderMembers(); renderFines();
+}
+function editMemberField(id, field, val){
+  const m = getMembers();
+  if(!m[id]) return;
+  m[id][field] = val; setMembers(m);
+}
+function editMemberName(id, newName){
+  newName = (newName||"").trim();
+  const members = getMembers();
+  const m = members[id];
+  if(!m) return;
+  if(!newName){ alert("이름 비어있음"); renderMembers(); return; }
+  if(newName === m.name) return;
+  // 중복 체크
+  if(Object.values(members).some(x=>x.id!==id && x.active!==false && x.name===newName)){
+    alert(`"${newName}" 동명 회원 존재`);
+    openMemberDetail(id); return;
+  }
+  const oldName = m.name;
+  // 저장된 모든 대회 + 현재 대회의 이름도 변경할지 확인
+  const meets = getMeets();
+  let gameHits = 0, rosterHits = 0;
+  Object.values(meets).forEach(mt=>{
+    (mt.players||[]).forEach(p=>{ if(p.name===oldName) rosterHits++; });
+    (mt.games||[]).forEach(g=>{
+      ["t1a","t1b","t2a","t2b"].forEach(k=>{ if(g[k]===oldName) gameHits++; });
+    });
+  });
+  (state.players||[]).forEach(p=>{ if(p.name===oldName) rosterHits++; });
+  (state.games||[]).forEach(g=>{
+    ["t1a","t1b","t2a","t2b"].forEach(k=>{ if(g[k]===oldName) gameHits++; });
+  });
+
+  const cascade = (gameHits+rosterHits)>0
+    ? confirm(`저장된 대회/현재 편집본에 "${oldName}" 이 (게임 ${gameHits}건 · 출전자 ${rosterHits}건) 있습니다.\n함께 "${newName}"으로 변경할까요?\n(취소시 회원 이름만 변경 — 기록은 분리됨)`)
+    : true;
+
+  m.name = newName; setMembers(members);
+
+  if(cascade && (gameHits+rosterHits)>0){
+    Object.keys(meets).forEach(k=>{
+      const mt = meets[k];
+      (mt.players||[]).forEach(p=>{ if(p.name===oldName) p.name = newName; });
+      (mt.games||[]).forEach(g=>{
+        ["t1a","t1b","t2a","t2b"].forEach(kk=>{ if(g[kk]===oldName) g[kk] = newName; });
+      });
+    });
+    setMeets(meets);
+    (state.players||[]).forEach(p=>{ if(p.name===oldName) p.name = newName; });
+    (state.games||[]).forEach(g=>{
+      ["t1a","t1b","t2a","t2b"].forEach(kk=>{ if(g[kk]===oldName) g[kk] = newName; });
+    });
+    persist();
+  }
+  renderAll(); renderMembers(); renderFines();
+  openMemberDetail(id);
+  alert(`"${oldName}" → "${newName}" 변경 완료${cascade&&(gameHits+rosterHits)>0?` (기록 ${gameHits+rosterHits}건 포함)`:""}`);
+}
+
+function renderMembers(){
+  const q = (document.getElementById("mSearch")?.value||"").toLowerCase();
+  const filter = document.getElementById("mFilter")?.value || "active";
+  const members = Object.values(getMembers());
+  const filtered = members.filter(m=>{
+    if(q && !m.name.toLowerCase().includes(q)) return false;
+    if(filter==="active") return m.active!==false && !m.isGuest;
+    if(filter==="guest") return m.active!==false && m.isGuest;
+    if(filter==="inactive") return m.active===false;
+    return true;
+  }).sort((a,b)=>a.name.localeCompare(b.name,"ko"));
+
+  const box = document.getElementById("membersBox");
+  if(!box) return;
+  if(filtered.length===0){ box.innerHTML = `<div class="muted">해당 회원 없음</div>`; return; }
+  let h = `<table class="stats-table"><thead><tr>
+    <th>이름</th><th>성별</th><th>구분</th><th>연락처</th><th>상태</th><th>동작</th>
+  </tr></thead><tbody>`;
+  filtered.forEach(m=>{
+    h += `<tr ${m.active===false?'style="opacity:.5"':''}>
+      <td style="text-align:left;padding-left:8px">
+        <a href="#" onclick="openMemberDetail('${m.id}');return false" style="color:var(--accent)">${escapeHtml(m.name)}</a>
+      </td>
+      <td>${m.gender==="F"?"여":"남"}</td>
+      <td>${m.isGuest?'<span class="tag g">비</span>':'<span class="tag m">회</span>'}</td>
+      <td style="font-size:11px">${escapeHtml(m.phone||"")}</td>
+      <td>${m.active===false?'<span class="tag t">휴</span>':'<span class="tag w">활</span>'}</td>
+      <td>
+        <button class="btn sec small" onclick="toggleMemberGuest('${m.id}')" title="회/비 전환">↔</button>
+        <button class="btn sec small" onclick="toggleMemberActive('${m.id}')" title="활/휴 전환">⏸</button>
+        <button class="btn danger small" onclick="deleteMember('${m.id}')">✕</button>
+      </td></tr>`;
+  });
+  h += `</tbody></table>
+    <div class="muted" style="margin-top:6px">총 ${members.length}명 (활동 ${members.filter(m=>m.active!==false).length})</div>`;
+  box.innerHTML = h;
+}
+
+/* 벌금 정산 현황 */
+function computeMemberFines(){
+  // 모든 저장된 대회에서 이름별 누적 승/패 집계 → 회원 매칭
+  const meets = getMeets();
+  const members = getMembers();
+  const payments = getPayments();
+  const byName = {};
+  Object.values(meets).forEach(mt=>{
+    const s = computeStats(mt);
+    Object.values(s.byPlayer).forEach(p=>{
+      if(p.played===0) return;
+      if(!byName[p.name]) byName[p.name] = {played:0,wins:0,losses:0,meets:0};
+      byName[p.name].played += p.played;
+      byName[p.name].wins += p.wins;
+      byName[p.name].losses += p.losses;
+      byName[p.name].meets++;
+    });
+  });
+  const rows = Object.values(members).map(m=>{
+    const stats = byName[m.name] || {played:0,wins:0,losses:0,meets:0};
+    const totalFine = stats.losses * FINE_PER_LOSS;
+    const paid = (payments[m.id]||[]).reduce((s,p)=>s+(+p.amount||0),0);
+    return {...m, ...stats, totalFine, paid, unpaid: totalFine - paid};
+  });
+  return rows;
+}
+function renderFines(){
+  const rows = computeMemberFines()
+    .filter(r=>r.active!==false && (r.totalFine>0 || r.paid>0))
+    .sort((a,b)=>b.unpaid-a.unpaid);
+  const box = document.getElementById("finesBox");
+  if(!box) return;
+  if(rows.length===0){ box.innerHTML = `<div class="muted">아직 벌금 데이터 없음 (대회 저장 후 생성됨)</div>`; return; }
+  let h = `<table class="stats-table"><thead><tr>
+    <th>이름</th><th>참여</th><th>패</th><th>누적벌금</th><th>입금</th><th>미납</th>
+  </tr></thead><tbody>`;
+  let tTotal=0, tPaid=0, tUnpaid=0;
+  rows.forEach(r=>{
+    tTotal+=r.totalFine; tPaid+=r.paid; tUnpaid+=r.unpaid;
+    h += `<tr>
+      <td style="text-align:left;padding-left:8px">
+        <a href="#" onclick="openMemberDetail('${r.id}');return false" style="color:var(--accent)">${escapeHtml(r.name)}</a>
+      </td>
+      <td>${r.meets}</td><td>${r.losses}</td>
+      <td>${r.totalFine.toLocaleString()}</td>
+      <td>${r.paid.toLocaleString()}</td>
+      <td class="${r.unpaid>0?'fine-cell':''}">${r.unpaid.toLocaleString()}</td>
+    </tr>`;
+  });
+  h += `</tbody><tfoot><tr style="font-weight:700;background:#f9fafb">
+    <td style="text-align:left;padding-left:8px">합계</td><td>-</td><td>-</td>
+    <td>${tTotal.toLocaleString()}</td>
+    <td>${tPaid.toLocaleString()}</td>
+    <td class="fine-cell">${tUnpaid.toLocaleString()}</td>
+  </tr></tfoot></table>`;
+  box.innerHTML = h;
+}
+function exportFinesCSV(){
+  const rows = computeMemberFines().filter(r=>r.active!==false);
+  const header = ["이름","성별","회원구분","참여대회","출전","승","패","누적벌금","입금","미납"];
+  const lines = [header.join(",")];
+  rows.forEach(r=>{
+    lines.push([
+      r.name, r.gender==="F"?"여":"남", r.isGuest?"비회원":"회원",
+      r.meets, r.played, r.wins, r.losses,
+      r.totalFine, r.paid, r.unpaid
+    ].join(","));
+  });
+  const csv = "\ufeff" + lines.join("\n"); // BOM for Excel 한글
+  const blob = new Blob([csv],{type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `벌금정산_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* 회원 상세 */
+function openMemberDetail(id){
+  currentMemberId = id;
+  const m = getMembers()[id];
+  if(!m) return;
+  document.getElementById("memberDetailCard").classList.remove("hidden");
+  document.getElementById("mdName").textContent = m.name;
+  document.getElementById("mdPayDate").value = new Date().toISOString().slice(0,10);
+
+  // 정보 편집
+  document.getElementById("mdInfo").innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;padding:10px;background:#f9fafb;border-radius:6px">
+      <div><label class="muted" style="font-size:11px">이름</label>
+        <input type="text" value="${escapeAttr(m.name||"")}" onchange="editMemberName('${id}',this.value)" style="width:100%;padding:4px 6px;font-size:13px"/></div>
+      <div><label class="muted" style="font-size:11px">성별</label>
+        <select onchange="editMemberField('${id}','gender',this.value);renderMembers();renderFines()" style="width:100%;padding:4px 6px">
+          <option value="M" ${m.gender!=="F"?"selected":""}>남</option>
+          <option value="F" ${m.gender==="F"?"selected":""}>여</option>
+        </select></div>
+      <div><label class="muted" style="font-size:11px">구분</label>
+        <select onchange="editMemberField('${id}','isGuest',this.value==='1');renderMembers();renderFines()" style="width:100%;padding:4px 6px">
+          <option value="0" ${!m.isGuest?"selected":""}>회원</option>
+          <option value="1" ${m.isGuest?"selected":""}>비회원</option>
+        </select></div>
+      <div><label class="muted" style="font-size:11px">상태</label>
+        <select onchange="editMemberField('${id}','active',this.value==='1');renderMembers();renderFines()" style="width:100%;padding:4px 6px">
+          <option value="1" ${m.active!==false?"selected":""}>활동</option>
+          <option value="0" ${m.active===false?"selected":""}>휴회원</option>
+        </select></div>
+      <div><label class="muted" style="font-size:11px">가입일</label>
+        <input type="date" value="${escapeAttr(m.joinDate||"")}" onchange="editMemberField('${id}','joinDate',this.value)" style="width:100%;padding:4px 6px;font-size:13px"/></div>
+      <div><label class="muted" style="font-size:11px">연락처</label>
+        <input type="text" value="${escapeAttr(m.phone||"")}" onchange="editMemberField('${id}','phone',this.value)" style="width:100%;padding:4px 6px;font-size:13px" placeholder="010-..."/></div>
+      <div style="grid-column:1/-1"><label class="muted" style="font-size:11px">메모</label>
+        <input type="text" value="${escapeAttr(m.note||"")}" onchange="editMemberField('${id}','note',this.value)" style="width:100%;padding:4px 6px;font-size:13px"/></div>
+    </div>`;
+
+  // 출전 내역
+  const meets = getMeets();
+  const keys = Object.keys(meets).sort().reverse();
+  let h = `<table class="stats-table"><thead><tr><th>대회</th><th>출</th><th>승</th><th>패</th><th>득</th><th>실</th><th>벌금</th></tr></thead><tbody>`;
+  let anyPlayed = false;
+  keys.forEach(k=>{
+    const stats = computeStats(meets[k]);
+    const p = stats.byPlayer[m.name];
+    if(!p || p.played===0) return;
+    anyPlayed = true;
+    h += `<tr><td style="text-align:left;padding-left:8px">${escapeHtml(k)}</td>
+      <td>${p.played}</td><td>${p.wins}</td><td>${p.losses}</td>
+      <td>${p.ptsFor}</td><td>${p.ptsAgainst}</td>
+      <td class="fine-cell">${(p.losses*FINE_PER_LOSS).toLocaleString()}</td></tr>`;
+  });
+  h += `</tbody></table>`;
+  document.getElementById("mdHistory").innerHTML = anyPlayed?h:`<div class="muted">출전 기록 없음</div>`;
+
+  renderPayments();
+  document.getElementById("memberDetailCard").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function closeMemberDetail(){
+  currentMemberId = null;
+  document.getElementById("memberDetailCard").classList.add("hidden");
+}
+function addPayment(){
+  if(!currentMemberId) return;
+  const amount = parseInt(document.getElementById("mdPayAmount").value);
+  if(!amount || amount<=0){ alert("금액 입력"); return; }
+  const date = document.getElementById("mdPayDate").value || new Date().toISOString().slice(0,10);
+  const note = document.getElementById("mdPayNote").value.trim();
+  const p = getPayments();
+  if(!p[currentMemberId]) p[currentMemberId]=[];
+  p[currentMemberId].push({date, amount, note});
+  setPayments(p);
+  document.getElementById("mdPayAmount").value="";
+  document.getElementById("mdPayNote").value="";
+  renderPayments(); renderFines();
+}
+function deletePayment(idx){
+  if(!currentMemberId) return;
+  const p = getPayments();
+  if(!p[currentMemberId]) return;
+  if(!confirm("입금 기록 삭제?")) return;
+  p[currentMemberId].splice(idx,1);
+  setPayments(p);
+  renderPayments(); renderFines();
+}
+function renderPayments(){
+  if(!currentMemberId) return;
+  const p = getPayments()[currentMemberId] || [];
+  const m = getMembers()[currentMemberId];
+  const meets = getMeets();
+  let totalFine = 0;
+  Object.values(meets).forEach(mt=>{
+    const s = computeStats(mt);
+    const pp = s.byPlayer[m.name];
+    if(pp) totalFine += pp.losses * FINE_PER_LOSS;
+  });
+  const paid = p.reduce((s,x)=>s+(+x.amount||0),0);
+  const unpaid = totalFine - paid;
+  let h = `<div class="row" style="gap:14px;flex-wrap:wrap;margin-bottom:6px">
+    <div>누적벌금 <b>${totalFine.toLocaleString()}원</b></div>
+    <div>입금합계 <b>${paid.toLocaleString()}원</b></div>
+    <div class="${unpaid>0?'fine-cell':''}">미납 <b>${unpaid.toLocaleString()}원</b></div>
+  </div>`;
+  if(p.length===0){ h += `<div class="muted">입금 기록 없음</div>`; }
+  else {
+    h += `<table class="stats-table"><thead><tr><th>날짜</th><th>금액</th><th>비고</th><th></th></tr></thead><tbody>`;
+    p.slice().sort((a,b)=>b.date.localeCompare(a.date)).forEach((pay,i)=>{
+      const origIdx = p.indexOf(pay);
+      h += `<tr><td>${escapeHtml(pay.date)}</td>
+        <td>${pay.amount.toLocaleString()}</td>
+        <td style="text-align:left;padding-left:8px">${escapeHtml(pay.note||"")}</td>
+        <td><button class="btn danger small" onclick="deletePayment(${origIdx})">✕</button></td></tr>`;
+    });
+    h += `</tbody></table>`;
+  }
+  document.getElementById("mdPayments").innerHTML = h;
+}
+
+/* 회원 picker (대회설정에서 참가자 선택) */
+let pickerSelected = new Set();
+function openMemberPicker(){
+  const members = Object.values(getMembers()).filter(m=>m.active!==false)
+    .sort((a,b)=>a.name.localeCompare(b.name,"ko"));
+  if(members.length===0){ alert("등록된 회원이 없습니다. 회원 탭에서 먼저 추가하세요."); return; }
+  pickerSelected = new Set(state.players.map(p=>p.name));
+  const box = document.getElementById("pickerBox");
+  box.innerHTML = members.map(m=>`
+    <label style="display:flex;align-items:center;gap:8px;padding:6px;border-bottom:1px solid #f3f4f6">
+      <input type="checkbox" data-name="${escapeAttr(m.name)}" data-guest="${m.isGuest?1:0}"
+        ${pickerSelected.has(m.name)?"checked":""}
+        onchange="pickerToggle(this)" />
+      <span style="flex:1">${escapeHtml(m.name)}</span>
+      ${m.isGuest?'<span class="tag g">비</span>':'<span class="tag m">회</span>'}
+      <span class="muted">${m.gender==="F"?"여":"남"}</span>
+    </label>`).join("");
+  document.getElementById("memberPickerCard").classList.remove("hidden");
+  document.getElementById("memberPickerCard").scrollIntoView({behavior:"smooth"});
+}
+function closeMemberPicker(){
+  document.getElementById("memberPickerCard").classList.add("hidden");
+}
+function pickerToggle(el){
+  const n = el.dataset.name;
+  if(el.checked) pickerSelected.add(n); else pickerSelected.delete(n);
+}
+function pickerAll(on){
+  const box = document.getElementById("pickerBox");
+  box.querySelectorAll("input[type=checkbox]").forEach(cb=>{
+    cb.checked = on;
+    const n = cb.dataset.name;
+    if(on) pickerSelected.add(n); else pickerSelected.delete(n);
+  });
+}
+function applyPicker(){
+  const members = getMembers();
+  const byName = {};
+  Object.values(members).forEach(m=>{byName[m.name]=m});
+  // 선택된 회원으로 덮어쓰기 (기존에 없던 선수는 유지)
+  const wasNonMember = state.players.filter(p=>!byName[p.name]);
+  const fromMembers = [...pickerSelected].map(name=>{
+    const m = byName[name];
+    return {name, isGuest: m?m.isGuest:false};
+  });
+  state.players = [...fromMembers, ...wasNonMember];
+  persist(); renderPlayers(); renderGamesTable();
+  closeMemberPicker();
+  alert(`참가자 ${state.players.length}명 반영`);
+}
+
+/* ============ AI 비전 설정 ============ */
+const AI_KEY = "ssob_ai_settings_v1";
+function loadAiSettings(){
+  try{
+    const s = JSON.parse(localStorage.getItem(AI_KEY)||"{}");
+    document.getElementById("aiProvider").value = s.provider || "gemini";
+    document.getElementById("aiModel").value = s.model || "gemini-2.5-flash";
+    document.getElementById("aiKey").value = s.key || "";
+    updateAiKeyStatus();
+    updateProviderHint();
+  }catch(e){}
+}
+function onProviderChange(){
+  const p = document.getElementById("aiProvider").value;
+  const defaults = {gemini:"gemini-2.5-flash", claude:"claude-sonnet-4-6", openai:"gpt-4o-mini"};
+  document.getElementById("aiModel").value = defaults[p];
+  saveAiSettings();
+  updateProviderHint();
+}
+function updateProviderHint(){
+  const p = document.getElementById("aiProvider").value;
+  const hint = document.getElementById("aiKeyHint");
+  if(!hint) return;
+  const hints = {
+    gemini: `🆓 무료: <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a> → 30초만에 발급. 카드등록 불필요. 매일 1,500회 무료.`,
+    claude: `💰 유료: <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> → API Keys. 이미지당 ~$0.005.`,
+    openai: `💰 유료: <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a>. 이미지당 ~$0.002(mini)~$0.01(4o).`
+  };
+  hint.innerHTML = hints[p] || "";
+}
+function saveAiSettings(){
+  const s = {
+    provider: document.getElementById("aiProvider").value,
+    model: document.getElementById("aiModel").value,
+    key: document.getElementById("aiKey").value
+  };
+  localStorage.setItem(AI_KEY, JSON.stringify(s));
+  updateAiKeyStatus();
+}
+function updateAiKeyStatus(){
+  const s = getAiSettings();
+  const el = document.getElementById("aiKeyStatus");
+  if(!s.key){ el.textContent = "키 없음 — AI 인식 불가"; el.style.color="var(--lose)"; }
+  else { el.textContent = `키 저장됨 (...${s.key.slice(-6)}) · ${s.provider}/${s.model}`; el.style.color="var(--win)"; }
+}
+function toggleKeyVisible(){
+  const i = document.getElementById("aiKey");
+  i.type = i.type==="password" ? "text" : "password";
+}
+function getAiSettings(){
+  try{return JSON.parse(localStorage.getItem(AI_KEY)||"{}")}catch(e){return{}}
+}
+
+/* ============ OCR (이미지 인식) ============ */
+let ocrImage = null;       // HTMLImageElement
+let ocrRotation = 0;       // 0/90/180/270
+let ocrRawWords = [];      // Tesseract words with bbox
+let ocrParsedRows = [];    // [{t1a,t1b,t2a,t2b,type,ref,matches:{...}}]
+let ocrRoster = [];        // ["이름","이름",...] 출전자 컬럼
+
+function onOcrFile(e, mode){
+  const f = e.target.files[0];
+  if(!f) return;
+  const url = URL.createObjectURL(f);
+  const img = new Image();
+  img.onload = ()=>{
+    ocrImage = img;
+    ocrRotation = 0;
+    ocrMode = mode || "bracket"; // "bracket" or "results"
+    // 캔버스가 없으면 메모리에만 (인라인 OCR용)
+    const cv = document.getElementById("ocrCanvas");
+    if(cv){
+      drawOcrImage();
+      cv.style.display = "block";
+    }
+    const aiBtn = mode==="results" ? document.getElementById("resultsAiBtn") : document.getElementById("bracketAiBtn");
+    if(aiBtn) aiBtn.disabled = false;
+  };
+  img.src = url;
+}
+let ocrMode = "bracket"; // 현재 OCR 대상 모드
+function rotateOcrImage(){
+  if(!ocrImage) return;
+  ocrRotation = (ocrRotation+90)%360;
+  drawOcrImage();
+}
+function drawOcrImage(){
+  const c = document.getElementById("ocrCanvas");
+  if(!ocrImage) return;
+  const w = ocrImage.naturalWidth, h = ocrImage.naturalHeight;
+  const rot = ocrRotation;
+  if(rot===90||rot===270){ c.width=h; c.height=w; } else { c.width=w; c.height=h; }
+  const ctx = c.getContext("2d");
+  ctx.save();
+  ctx.translate(c.width/2, c.height/2);
+  ctx.rotate(rot*Math.PI/180);
+  ctx.drawImage(ocrImage, -w/2, -h/2);
+  ctx.restore();
+  c.style.display = "block";
+}
+async function runOcr(){
+  if(!ocrImage){alert("이미지를 먼저 선택하세요");return}
+  if(typeof Tesseract==="undefined"){alert("Tesseract 라이브러리 로드 실패 (네트워크 확인)");return}
+  const btn = document.getElementById("ocrRunBtn");
+  btn.disabled = true;
+  const bar = document.getElementById("ocrBar");
+  const phase = document.getElementById("ocrPhase");
+  document.getElementById("ocrProgress").classList.remove("hidden");
+  phase.textContent = "한글 학습데이터 로드 중... (첫 실행은 수십 MB 다운로드)";
+  bar.style.width = "0%";
+
+  const canvas = document.getElementById("ocrCanvas");
+  try{
+    const result = await Tesseract.recognize(canvas, "kor", {
+      logger: m => {
+        if(m.progress!=null) bar.style.width = Math.round(m.progress*100)+"%";
+        if(m.status) phase.textContent = m.status + " (" + Math.round((m.progress||0)*100) + "%)";
+      }
+    });
+    const words = (result.data.words||[]).filter(w=>w.text && w.text.trim());
+    ocrRawWords = words;
+    document.getElementById("ocrRawText").textContent = result.data.text;
+    parseOcrIntoRows();
+    document.getElementById("ocrResultCard").classList.remove("hidden");
+    phase.textContent = `완료: ${words.length}개 단어 인식, ${ocrParsedRows.length}개 행 추정`;
+  }catch(err){
+    phase.textContent = "오류: " + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* OCR 단어들을 y좌표로 클러스터링 → 행 생성 → 각 행을 x순 정렬 → 셀 후보 배분 */
+function parseOcrIntoRows(){
+  const words = ocrRawWords.slice();
+  if(words.length===0){ocrParsedRows=[]; renderOcrReview(); return;}
+
+  // 평균 단어 높이로 라인 높이 추정
+  const avgH = words.reduce((s,w)=>s+(w.bbox.y1-w.bbox.y0),0)/words.length;
+  const lineTol = avgH * 0.6;
+
+  // y중심 기준 클러스터
+  const items = words.map(w=>({
+    text: w.text.replace(/[^\uAC00-\uD7A3A-Za-z0-9]/g,""),
+    cx:(w.bbox.x0+w.bbox.x1)/2, cy:(w.bbox.y0+w.bbox.y1)/2,
+    x0:w.bbox.x0, x1:w.bbox.x1, conf:w.confidence
+  })).filter(i=>i.text);
+
+  items.sort((a,b)=>a.cy-b.cy);
+  const lines = [];
+  items.forEach(it=>{
+    const last = lines[lines.length-1];
+    if(last && Math.abs(it.cy - last.cy) < lineTol){
+      last.items.push(it);
+      last.cy = (last.cy*last.items.length + it.cy)/(last.items.length+1);
+    } else {
+      lines.push({cy: it.cy, items: [it]});
+    }
+  });
+  lines.forEach(l=>l.items.sort((a,b)=>a.x0-b.x0));
+
+  // 헤더/빈 줄 필터: 게임번호(1~40)로 시작하는 줄만 채택
+  const gameLines = [];
+  lines.forEach(l=>{
+    const first = l.items[0];
+    if(!first) return;
+    const n = parseInt(first.text);
+    if(!isNaN(n) && n>=1 && n<=40){
+      gameLines.push({gameNo:n, items:l.items.slice(1)});
+    }
+  });
+  // 게임번호 없으면 fallback: 한글 3개 이상 있는 줄 모두 채택
+  const sourceLines = gameLines.length>=3 ? gameLines : lines.filter(l=>{
+    const korean = l.items.filter(i=>/[\uAC00-\uD7A3]/.test(i.text));
+    return korean.length>=3;
+  }).map((l,i)=>({gameNo:i+1, items:l.items}));
+
+  // 각 줄에서 한글 이름만 추출 (숫자/영어 제외)
+  const allRoster = [];
+  ocrParsedRows = sourceLines.map(l=>{
+    const names = l.items.map(i=>i.text).filter(t=>/^[\uAC00-\uD7A3]{2,4}$/.test(t));
+    const [a,b,c,d,e] = names;
+    if(e) allRoster.push({name:e,cock:"",mf:"",mx:"",donation:""});
+    return {
+      gameNo: l.gameNo,
+      t1a: a||"", t1b: b||"", t2a: c||"", t2b: d||"", ref: e||"",
+      s1:"", s2:""
+    };
+  });
+  ocrRoster = allRoster;
+  renderOcrReview();
+}
+
+/* ============ AI 비전 OCR ============ */
+function canvasToBase64Jpeg(maxSide=1600,quality=0.85){
+  const c = document.getElementById("ocrCanvas");
+  const w = c.width, h = c.height;
+  const scale = Math.min(1, maxSide/Math.max(w,h));
+  if(scale>=1){
+    return c.toDataURL("image/jpeg", quality).split(",")[1];
+  }
+  const tmp = document.createElement("canvas");
+  tmp.width = Math.round(w*scale);
+  tmp.height = Math.round(h*scale);
+  tmp.getContext("2d").drawImage(c,0,0,tmp.width,tmp.height);
+  return tmp.toDataURL("image/jpeg", quality).split(",")[1];
+}
+
+const AI_PROMPT_BRACKET = `이 이미지는 배드민턴 복식 대진표(인쇄본, 경기 전 상태)입니다.
+표 구조: [게임 | 성명(팀1 A,B) | 점수 | 성명(팀2 A,B) | 점수 | 출전자 | ...]
+
+다음을 추출해 JSON으로만 응답하세요 (마크다운/설명 금지):
+
+1) games: 각 게임 행
+   - gameNo: 게임번호(1부터)
+   - team1: 팀1 선수 2명 이름 배열 (한글 이름)
+   - team2: 팀2 선수 2명 이름 배열
+   - 빈 행/헤더 행 제외
+
+2) roster: "출전자" 컬럼에 적힌 이름들 (위→아래 순서)
+   - 빈 칸 제외, 한글 이름만
+
+형식:
+{
+  "games":[{"gameNo":1,"team1":["이름","이름"],"team2":["이름","이름"]}],
+  "roster":[{"name":"김위영"}]
+}`;
+
+const AI_PROMPT_RESULTS = `이 이미지는 배드민턴 복식 대진표(A4 인쇄본에 **손글씨로** 점수/숫자 기입됨)입니다.
+표 구조: [게임 | 성명(팀1 A,B) | 점수 | 성명(팀2 A,B) | 점수 | 출전자 | 콕 | 남,여 | 혼 | 찬조금]
+
+**중요: 손으로 쓴 숫자를 정확히 읽는 것이 목적입니다.**
+- 숫자만 있는 칸(점수/콕/남여/혼/찬조금)은 특히 주의 깊게 판독
+- 25점 기준 배드민턴 복식 점수 (0~30 범위)
+- 손글씨가 흐리거나 모호하면 가장 가능성 높은 숫자 선택
+- 명확히 빈칸이면 "" 반환
+
+JSON으로만 응답 (마크다운/설명 금지):
+
+1) games: 각 게임 행
+   - gameNo: 게임번호(1부터)
+   - team1, team2: 팀 이름 배열 (이미지에 인쇄된 이름)
+   - s1: 팀1 점수 (손글씨 숫자, 없으면 "")
+   - s2: 팀2 점수 (손글씨 숫자, 없으면 "")
+
+2) roster: "출전자"부터 "찬조금"까지 각 행 (위→아래)
+   - name: 출전자 이름
+   - cock: 콕 손글씨 숫자 (빈칸이면 "")
+   - mf: "남,여" 손글씨 숫자
+   - mx: "혼" 손글씨 숫자
+   - donation: 찬조금 손글씨 숫자 (원 단위, 빈칸이면 "")
+
+형식:
+{
+  "games":[{"gameNo":1,"team1":["김위영","윤상호"],"team2":["이종석","신지훈"],"s1":"25","s2":"20"}],
+  "roster":[{"name":"김위영","cock":"2","mf":"2","mx":"2","donation":"1000"}]
+}`;
+
+function getAiPrompt(mode){
+  return mode==="results" ? AI_PROMPT_RESULTS : AI_PROMPT_BRACKET;
+}
+
+async function runAiOcr(mode){
+  if(!ocrImage){alert("이미지를 먼저 선택하세요");return}
+  const s = getAiSettings();
+  if(!s.key){alert("대회설정 탭에서 API 키를 먼저 등록하세요");return}
+  ocrMode = mode || ocrMode;
+  const btnId = ocrMode==="results" ? "resultsAiBtn" : "bracketAiBtn";
+  const btn = document.getElementById(btnId);
+  if(btn) btn.disabled = true;
+  const modeLabel = ocrMode==="results" ? "결과 (수기)" : "대진표";
+  // 상태표시 - 버튼 옆 또는 alert
+  try{
+    const b64 = canvasToBase64JpegAuto();
+    const prompt = getAiPrompt(ocrMode);
+    let json;
+    if(s.provider==="gemini") json = await callGeminiVision(s,b64,prompt);
+    else if(s.provider==="claude") json = await callClaudeVision(s,b64,prompt);
+    else json = await callOpenAIVision(s,b64,prompt);
+
+    const rawEl = document.getElementById("ocrRawText");
+    if(rawEl) rawEl.textContent = JSON.stringify(json,null,2);
+    if(!json.games || !Array.isArray(json.games)) throw new Error("응답에 games 배열이 없습니다");
+
+    ocrParsedRows = json.games.map(g=>({
+      gameNo: g.gameNo || 0,
+      t1a: (g.team1&&g.team1[0])||"",
+      t1b: (g.team1&&g.team1[1])||"",
+      t2a: (g.team2&&g.team2[0])||"",
+      t2b: (g.team2&&g.team2[1])||"",
+      s1: g.s1||"",
+      s2: g.s2||""
+    })).filter(r=>r.gameNo>0).sort((a,b)=>a.gameNo-b.gameNo);
+    // roster: 객체 배열 또는 문자열 배열 모두 수용
+    if(Array.isArray(json.roster)){
+      ocrRoster = json.roster.map(r=>{
+        if(typeof r==="string") return {name:r,cock:"",mf:"",mx:"",donation:""};
+        return {
+          name: r.name||"",
+          cock: r.cock!=null?String(r.cock):"",
+          mf: r.mf!=null?String(r.mf):"",
+          mx: r.mx!=null?String(r.mx):"",
+          donation: r.donation!=null?String(r.donation):""
+        };
+      }).filter(r=>/^[\uAC00-\uD7A3]{2,5}$/.test(r.name));
+    } else ocrRoster = [];
+
+    renderOcrReview();
+    const card = document.getElementById("ocrResultCard");
+    if(card){
+      card.classList.remove("hidden");
+      card.scrollIntoView({behavior:"smooth",block:"start"});
+    } else {
+      showOcrReviewModal();
+    }
+  }catch(err){
+    alert(`AI 인식 실패 (${modeLabel}):\n${err.message}`);
+  } finally {
+    if(btn) btn.disabled = false;
+  }
+}
+
+/* OCR 검토 모달 (탭에 검토 카드가 없는 경우) */
+function showOcrReviewModal(){
+  let m = document.getElementById("ocrReviewModal");
+  if(!m){
+    m = document.createElement("div");
+    m.id = "ocrReviewModal";
+    m.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:100;overflow:auto;padding:10px";
+    m.innerHTML = `<div style="background:#fff;border-radius:10px;max-width:900px;margin:0 auto;padding:14px">
+      <div class="row" style="justify-content:space-between"><h2 style="margin:0" id="ocrModalTitle">AI 인식 결과 검토</h2>
+        <button class="btn sec small" onclick="document.getElementById('ocrReviewModal').remove()">✕</button></div>
+      <div class="muted" style="margin:6px 0">
+        🟢정확 · 🟠유사매칭 · 🔴실패. 이름 수정 후 적용.
+      </div>
+      <div id="ocrRosterPreview"></div>
+      <div style="overflow-x:auto">
+        <table class="games-table"><thead><tr>
+          <th style="width:30px">#</th><th colspan="2">팀1</th>
+          <th style="width:44px">점1</th>
+          <th colspan="2">팀2</th>
+          <th style="width:44px">점2</th>
+        </tr></thead><tbody id="ocrReviewBody"></tbody></table>
+      </div>
+      <div class="row" style="margin-top:10px;justify-content:space-between">
+        <label><input type="checkbox" id="ocrAutoReg" checked /> 미등록 이름 자동 회원등록</label>
+        <div>
+          <button class="btn sec small" onclick="document.getElementById('ocrReviewModal').remove()">취소</button>
+          <button class="btn" onclick="ocrApply();document.getElementById('ocrReviewModal').remove()">✓ 적용</button>
+        </div>
+      </div>
+      <details style="margin-top:10px">
+        <summary class="muted">원시 JSON</summary>
+        <pre id="ocrRawText" style="font-size:11px;background:#f3f4f6;padding:8px;border-radius:6px;overflow:auto;max-height:180px"></pre>
+      </details>
+    </div>`;
+    document.body.appendChild(m);
+  }
+  document.getElementById("ocrModalTitle").textContent =
+    (ocrMode==="results"?"✍️ 결과(수기)":"📋 대진표") + " 인식 결과 검토";
+  renderOcrReview();
+}
+
+/* 캔버스가 없을 때도 안전하게 base64 */
+function canvasToBase64JpegAuto(maxSide=1600, quality=0.85){
+  // 기존 ocrCanvas 있으면 사용
+  const c = document.getElementById("ocrCanvas");
+  if(c && c.width>0){ return canvasToBase64Jpeg(maxSide,quality); }
+  // 없으면 임시 캔버스 생성
+  const tmp = document.createElement("canvas");
+  const w = ocrImage.naturalWidth, h = ocrImage.naturalHeight;
+  const rot = ocrRotation||0;
+  if(rot===90||rot===270){ tmp.width=h; tmp.height=w; } else { tmp.width=w; tmp.height=h; }
+  const ctx = tmp.getContext("2d");
+  ctx.save();
+  ctx.translate(tmp.width/2, tmp.height/2);
+  ctx.rotate(rot*Math.PI/180);
+  ctx.drawImage(ocrImage, -w/2, -h/2);
+  ctx.restore();
+  const scale = Math.min(1, maxSide/Math.max(tmp.width,tmp.height));
+  if(scale<1){
+    const smaller = document.createElement("canvas");
+    smaller.width = Math.round(tmp.width*scale);
+    smaller.height = Math.round(tmp.height*scale);
+    smaller.getContext("2d").drawImage(tmp,0,0,smaller.width,smaller.height);
+    return smaller.toDataURL("image/jpeg",quality).split(",")[1];
+  }
+  return tmp.toDataURL("image/jpeg",quality).split(",")[1];
+}
+
+async function callGeminiVision(s,b64,prompt){
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(s.model)}:generateContent?key=${encodeURIComponent(s.key)}`;
+  const res = await fetch(url,{
+    method:"POST",
+    headers:{"content-type":"application/json"},
+    body: JSON.stringify({
+      contents:[{
+        parts:[
+          {text: prompt||AI_PROMPT_BRACKET},
+          {inline_data:{mime_type:"image/jpeg", data:b64}}
+        ]
+      }],
+      generationConfig:{
+        response_mime_type:"application/json",
+        temperature: 0.1
+      }
+    })
+  });
+  if(!res.ok){
+    const t = await res.text();
+    throw new Error(`Gemini API ${res.status}: ${t.slice(0,300)}`);
+  }
+  const data = await res.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  if(!text) throw new Error("Gemini 빈 응답: "+JSON.stringify(data).slice(0,200));
+  return parseJsonFromText(text);
+}
+
+async function callClaudeVision(s,b64,prompt){
+  const res = await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{
+      "x-api-key": s.key,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      model: s.model,
+      max_tokens: 4000,
+      messages:[{
+        role:"user",
+        content:[
+          {type:"image", source:{type:"base64", media_type:"image/jpeg", data:b64}},
+          {type:"text", text: prompt||AI_PROMPT_BRACKET}
+        ]
+      }]
+    })
+  });
+  if(!res.ok){
+    const t = await res.text();
+    throw new Error(`Claude API ${res.status}: ${t.slice(0,200)}`);
+  }
+  const data = await res.json();
+  const text = data.content?.[0]?.text || "";
+  return parseJsonFromText(text);
+}
+
+async function callOpenAIVision(s,b64,prompt){
+  const res = await fetch("https://api.openai.com/v1/chat/completions",{
+    method:"POST",
+    headers:{
+      "Authorization": "Bearer "+s.key,
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      model: s.model,
+      response_format: {type:"json_object"},
+      messages:[{
+        role:"user",
+        content:[
+          {type:"text", text: prompt||AI_PROMPT_BRACKET},
+          {type:"image_url", image_url:{url:`data:image/jpeg;base64,${b64}`}}
+        ]
+      }]
+    })
+  });
+  if(!res.ok){
+    const t = await res.text();
+    throw new Error(`OpenAI API ${res.status}: ${t.slice(0,200)}`);
+  }
+  const data = await res.json();
+  const text = data.choices?.[0]?.message?.content || "";
+  return parseJsonFromText(text);
+}
+
+function parseJsonFromText(t){
+  // 코드펜스 제거
+  let s = t.trim().replace(/^```(?:json)?\s*/i,"").replace(/```\s*$/,"").trim();
+  // 첫 { ~ 마지막 } 추출
+  const i = s.indexOf("{"), j = s.lastIndexOf("}");
+  if(i>=0 && j>i) s = s.slice(i,j+1);
+  return JSON.parse(s);
+}
+
+/* Levenshtein 거리 */
+function lev(a,b){
+  if(!a||!b) return Math.max((a||"").length,(b||"").length);
+  const m=a.length,n=b.length;
+  const dp=Array.from({length:m+1},()=>new Array(n+1).fill(0));
+  for(let i=0;i<=m;i++) dp[i][0]=i;
+  for(let j=0;j<=n;j++) dp[0][j]=j;
+  for(let i=1;i<=m;i++)for(let j=1;j<=n;j++){
+    dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1+Math.min(dp[i-1][j-1],dp[i-1][j],dp[i][j-1]);
+  }
+  return dp[m][n];
+}
+function matchPlayer(ocrName){
+  if(!ocrName) return {name:"",score:-1,status:"empty"};
+  const exact = state.players.find(p=>p.name===ocrName);
+  if(exact) return {name:exact.name,score:0,status:"exact"};
+  let best = null, bestD = 99;
+  state.players.forEach(p=>{
+    const d = lev(ocrName, p.name);
+    if(d<bestD){bestD=d; best=p;}
+  });
+  if(best && bestD<=1) return {name:best.name,score:bestD,status:"fuzzy"};
+  if(best && bestD<=2 && ocrName.length>=3) return {name:best.name,score:bestD,status:"fuzzy"};
+  return {name:ocrName,score:bestD,status:"nomatch"};
+}
+
+function renderOcrReview(){
+  // 출전자 명단 표시
+  const rosterBox = document.getElementById("ocrRosterPreview");
+  if(rosterBox){
+    if(ocrRoster && ocrRoster.length>0){
+      rosterBox.innerHTML = `<div style="padding:6px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;margin-bottom:8px">
+        <b>📋 출전자 명단 (${ocrRoster.length}명):</b>
+        <div style="margin-top:4px">${ocrRoster.map((r,i)=>{
+          const extra = [r.cock?`콕${r.cock}`:"",r.mf?`남여${r.mf}`:"",r.mx?`혼${r.mx}`:"",r.donation?`찬조${r.donation}`:""].filter(Boolean).join(" · ");
+          return `<span class="chip" style="margin:2px">
+            <span>${escapeHtml(r.name)}</span>
+            ${extra?`<span class="mini-badge" style="font-size:10px">${escapeHtml(extra)}</span>`:""}
+            <button onclick="ocrRemoveRoster(${i})" style="background:transparent;border:0;cursor:pointer">✕</button>
+          </span>`;
+        }).join("")}
+        </div>
+        <div class="muted" style="margin-top:4px;font-size:11px">순서대로 참가자 슬롯에 들어갑니다. OCR된 남여/혼/콕/찬조금 숫자는 적용시 함께 반영됩니다.</div>
+      </div>`;
+    } else {
+      rosterBox.innerHTML = `<div class="muted" style="margin-bottom:8px">출전자 명단 추출 실패 — 게임 내 이름에서 자동 추론됩니다.</div>`;
+    }
+  }
+
+  const body = document.getElementById("ocrReviewBody");
+  body.innerHTML = "";
+  const listId = "dl-players";
+  if(!document.getElementById(listId)){
+    const dl = document.createElement("datalist"); dl.id=listId;
+    document.body.appendChild(dl);
+  }
+  document.getElementById(listId).innerHTML = state.players.map(p=>`<option value="${escapeHtml(p.name)}">`).join("");
+
+  ocrParsedRows.forEach((r,i)=>{
+    const makeNameCell = (k)=>{
+      const orig = r[k]||"";
+      const m = matchPlayer(orig);
+      r["_"+k] = m;
+      const color = m.status==="exact"?"#dcfce7":m.status==="fuzzy"?"#fef3c7":m.status==="nomatch"?"#fee2e2":"#fff";
+      return `<td style="background:${color}">
+        <input type="text" list="${listId}" value="${escapeAttr(m.name)}"
+          onchange="ocrSet(${i},'${k}',this.value)" style="width:100%;border:0;padding:6px 4px;font-size:12px;background:transparent">
+        ${orig && orig!==m.name?`<div class="muted" style="font-size:10px">원문: ${escapeHtml(orig)}</div>`:""}
+      </td>`;
+    };
+    const scoreCell = (k)=>{
+      return `<td style="background:#fff"><input type="text" inputmode="numeric" value="${escapeAttr(r[k]||"")}"
+        onchange="ocrSet(${i},'${k}',this.value)" style="width:100%;border:0;padding:6px 4px;font-size:13px;font-weight:700;text-align:center"></td>`;
+    };
+    const tr = document.createElement("tr");
+    if(ocrMode==="results"){
+      tr.innerHTML = `<td class="game-no">${r.gameNo}</td>
+        ${makeNameCell("t1a")}${makeNameCell("t1b")}
+        ${scoreCell("s1")}
+        ${makeNameCell("t2a")}${makeNameCell("t2b")}
+        ${scoreCell("s2")}`;
+    } else {
+      tr.innerHTML = `<td class="game-no">${r.gameNo}</td>
+        ${makeNameCell("t1a")}${makeNameCell("t1b")}
+        <td class="muted">-</td>
+        ${makeNameCell("t2a")}${makeNameCell("t2b")}
+        <td class="muted">-</td>`;
+    }
+    body.appendChild(tr);
+  });
+}
+function ocrSet(i,key,val){
+  ocrParsedRows[i][key] = val;
+  if(["t1a","t1b","t2a","t2b"].includes(key)) renderOcrReview();
+}
+function ocrCancel(){
+  document.getElementById("ocrResultCard").classList.add("hidden");
+  ocrParsedRows = [];
+  ocrRoster = [];
+}
+function ocrRemoveRoster(i){
+  ocrRoster.splice(i,1);
+  renderOcrReview();
+}
+function ocrApply(){
+  const autoRegEl = document.getElementById("ocrAutoReg");
+  const autoReg = autoRegEl ? autoRegEl.checked : true;
+  const members = getMembers();
+  const memberByName = {};
+  Object.values(members).forEach(m=>{memberByName[m.name]=m});
+
+  // 게임 수 맞추기
+  const maxG = Math.max(...ocrParsedRows.map(r=>r.gameNo||0), state.games.length);
+  while(state.games.length<maxG) state.games.push(blankGame());
+
+  if(ocrMode === "results"){
+    /* ========== 결과(수기) 모드 ========== */
+    // 점수 덮어쓰기 (손글씨 인식)
+    ocrParsedRows.forEach(r=>{
+      const idx = r.gameNo-1;
+      if(idx<0||idx>=state.games.length) return;
+      const g = state.games[idx];
+      if(r.s1!==""&&r.s1!=null) g.s1 = String(r.s1);
+      if(r.s2!==""&&r.s2!=null) g.s2 = String(r.s2);
+      // 팀 이름은 비어있을 때만 보완
+      if(!g.t1a && r.t1a) g.t1a = r.t1a;
+      if(!g.t1b && r.t1b) g.t1b = r.t1b;
+      if(!g.t2a && r.t2a) g.t2a = r.t2a;
+      if(!g.t2b && r.t2b) g.t2b = r.t2b;
+    });
+    // 출전자 필드(콕/남여/혼/찬조금) 업데이트 — 이름 매칭 우선
+    if(ocrRoster && ocrRoster.length>0){
+      ocrRoster.forEach((r, i)=>{
+        let slot = state.players.findIndex(p=>p.name===r.name);
+        if(slot<0) slot = i; // 이름 못찾으면 순서 기준
+        if(slot>=0 && slot<state.players.length){
+          const p = state.players[slot];
+          if(r.cock) p.cock = String(r.cock);
+          if(r.mf) p.mf = String(r.mf);
+          if(r.mx) p.mx = String(r.mx);
+          if(r.donation) p.donation = String(r.donation);
+        }
+      });
+    }
+    persist(); renderAll(); renderResultsTable();
+    switchTab("results");
+    const filledScores = ocrParsedRows.filter(r=>r.s1!==""&&r.s2!=="").length;
+    alert(`✍️ 결과(수기) 적용 완료\n점수 ${filledScores}게임 · 출전자 필드 ${ocrRoster?ocrRoster.length:0}건 갱신`);
+  } else {
+    /* ========== 대진표 모드 ========== */
+    // 출전자 명단 (이름만)
+    let rosterItems = [];
+    if(ocrRoster && ocrRoster.length>0){
+      rosterItems = [...ocrRoster];
+    } else {
+      const seen = new Set();
+      ocrParsedRows.forEach(r=>{
+        ["t1a","t1b","t2a","t2b"].forEach(k=>{
+          const v = r[k];
+          if(v && /^[\uAC00-\uD7A3]{2,5}$/.test(v) && !seen.has(v)){
+            seen.add(v);
+            rosterItems.push({name:v});
+          }
+        });
+      });
+    }
+    // 기존 플레이어의 필드값은 보존 (이름 매칭)
+    const prevByName = {};
+    state.players.forEach(p=>{prevByName[p.name]=p});
+    state.players = rosterItems.map(r=>{
+      const prev = prevByName[r.name] || {};
+      const m = memberByName[r.name];
+      return {
+        name: r.name,
+        isGuest: m?m.isGuest:(prev.isGuest||false),
+        cock: prev.cock||"", mf: prev.mf||"", mx: prev.mx||"", donation: prev.donation||""
+      };
+    });
+    // 대진 채우기 (점수는 유지)
+    ocrParsedRows.forEach(r=>{
+      const idx = r.gameNo-1;
+      if(idx<0||idx>=state.games.length) return;
+      const g = state.games[idx];
+      g.t1a=r.t1a||""; g.t1b=r.t1b||""; g.t2a=r.t2a||""; g.t2b=r.t2b||"";
+    });
+    // 미등록 이름 자동 회원등록
+    if(autoReg){
+      const today = new Date().toISOString().slice(0,10);
+      const toAdd = new Set();
+      rosterItems.forEach(r=>{ if(!memberByName[r.name]) toAdd.add(r.name); });
+      ocrParsedRows.forEach(r=>{
+        ["t1a","t1b","t2a","t2b"].forEach(k=>{
+          const v = r[k];
+          if(v && /^[\uAC00-\uD7A3]{2,5}$/.test(v) && !memberByName[v]) toAdd.add(v);
+        });
+      });
+      toAdd.forEach(n=>{
+        const id = genId();
+        members[id] = {id,name:n,gender:"M",isGuest:false,phone:"",note:"OCR 자동등록",joinDate:today,active:true};
+      });
+      if(toAdd.size>0) setMembers(members);
+    }
+    persist(); renderAll();
+    switchTab("games");
+    alert(`📋 대진표 적용 완료\n${ocrParsedRows.length}개 게임 · 출전자 ${rosterItems.length}명`);
+  }
+  // 공통 정리
+  const card = document.getElementById("ocrResultCard");
+  if(card) card.classList.add("hidden");
+  ocrParsedRows = []; ocrRoster = [];
+}
+
+/* ============ 초기 렌더 ============ */
+function renderAll(){
+  document.getElementById("headerDate").textContent = state.date || "";
+  document.getElementById("meetDate").value = state.date || "";
+  document.getElementById("meetName").value = state.name || "";
+  document.getElementById("gameCount").value = state.games.length;
+  renderPlayers();
+  renderPlayerBreakdown();
+  renderGamesTable();
+  renderResultsTable();
+  renderEditTools();
+}
+document.getElementById("meetDate").addEventListener("change",e=>{state.date=e.target.value; persist(); document.getElementById("headerDate").textContent=state.date});
+document.getElementById("meetName").addEventListener("change",e=>{state.name=e.target.value; persist();});
+
+load();
+renderAll();
+loadAiSettings();
+</script>
+</body>
+</html>
