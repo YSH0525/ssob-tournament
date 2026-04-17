@@ -26,6 +26,11 @@ node_modules/
 dist/
 build/
 
+# Wrangler / Cloudflare
+.wrangler/
+.dev.vars
+wrangler.local.toml
+
 # 로컬 데이터 내보내기 (민감 가능)
 ssob_backup_*.json
 exports/
