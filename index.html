@@ -120,7 +120,7 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.3</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.4</span>
 </header>
 
 <nav class="tabs">
@@ -276,6 +276,10 @@
       </div>
       <div class="row" style="margin-top:8px">
         <button class="btn danger small" onclick="resetMeet()">현재 대회 초기화</button>
+        <button class="btn warn small" onclick="forceAppUpdate()">🔄 앱 강제 업데이트</button>
+      </div>
+      <div class="muted" style="margin-top:4px;font-size:11px">
+        · 강제 업데이트: 캐시 삭제 후 재로딩 (데이터는 보존)
       </div>
     </div>
   </section>
@@ -2655,21 +2659,44 @@ let ocrRoster = [];        // ["이름","이름",...] 출전자 컬럼
 
 function onOcrFile(e, mode){
   const f = e.target.files[0];
-  if(!f) return;
+  if(!f){ console.warn("파일 없음"); return; }
+  console.log(`이미지 선택: ${f.name} (${(f.size/1024).toFixed(0)}KB, ${f.type})`);
+
+  // HEIC 등 브라우저 기본 미지원 포맷 경고
+  if(f.type && !/image\/(jpeg|jpg|png|gif|webp|bmp)/i.test(f.type)){
+    alert(`⚠ 이미지 형식 문제 가능: ${f.type}\nJPG/PNG로 변환 후 다시 시도하세요.\n(iPhone 설정 → 카메라 → 포맷 → 가장 호환성)`);
+  }
   const url = URL.createObjectURL(f);
   const img = new Image();
   img.onload = ()=>{
+    console.log(`이미지 로드 성공: ${img.naturalWidth}x${img.naturalHeight}`);
     ocrImage = img;
     ocrRotation = 0;
-    ocrMode = mode || "bracket"; // "bracket" or "results"
-    // 캔버스가 없으면 메모리에만 (인라인 OCR용)
+    ocrMode = mode || "bracket";
     const cv = document.getElementById("ocrCanvas");
     if(cv){
       drawOcrImage();
       cv.style.display = "block";
     }
     const aiBtn = mode==="results" ? document.getElementById("resultsAiBtn") : document.getElementById("bracketAiBtn");
-    if(aiBtn) aiBtn.disabled = false;
+    if(aiBtn){
+      aiBtn.disabled = false;
+      aiBtn.style.animation = "pulse 0.5s";
+    }
+    // 사용자 피드백
+    const fileInput = e.target;
+    const label = fileInput.parentElement?.querySelector(".ocr-status") || (()=>{
+      const el = document.createElement("div");
+      el.className = "ocr-status";
+      el.style.cssText = "font-size:11px;color:var(--win);margin-top:4px;flex-basis:100%";
+      fileInput.parentElement.appendChild(el);
+      return el;
+    })();
+    label.textContent = `✓ 이미지 준비됨 (${img.naturalWidth}×${img.naturalHeight}, ${(f.size/1024).toFixed(0)}KB) — AI 버튼 클릭`;
+  };
+  img.onerror = (err)=>{
+    console.error("이미지 로드 실패:", err);
+    alert(`이미지 로드 실패\n파일: ${f.name}\n형식: ${f.type}\n\n다른 이미지로 시도하거나 JPG/PNG로 변환 후 재시도.`);
   };
   img.src = url;
 }
@@ -3892,10 +3919,46 @@ renderCloneList();
 /* 서비스워커 등록 (PWA) */
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch(err => {
+    navigator.serviceWorker.register("sw.js").then(reg=>{
+      // 주기적으로 업데이트 확인 (1시간마다)
+      setInterval(()=>reg.update().catch(()=>{}), 60*60*1000);
+      reg.addEventListener("updatefound", ()=>{
+        const newSW = reg.installing;
+        if(!newSW) return;
+        newSW.addEventListener("statechange", ()=>{
+          if(newSW.state==="installed" && navigator.serviceWorker.controller){
+            // 새 버전 준비됨 — 알림
+            const banner = document.createElement("div");
+            banner.style.cssText="position:fixed;bottom:70px;left:10px;right:10px;background:#2563eb;color:#fff;padding:10px;border-radius:6px;z-index:999;text-align:center;font-size:13px";
+            banner.innerHTML = `🔄 새 버전 준비됨 <button onclick="location.reload()" style="margin-left:8px;padding:4px 10px;background:#fff;color:#2563eb;border:0;border-radius:4px;font-weight:700">새로고침</button>`;
+            document.body.appendChild(banner);
+          }
+        });
+      });
+    }).catch(err => {
       console.warn("SW 등록 실패:", err);
     });
   });
+}
+
+/* 앱 강제 업데이트 - 캐시 완전 초기화 */
+async function forceAppUpdate(){
+  if(!confirm("앱 캐시를 완전히 초기화하고 새로고침합니다.\n(저장된 대회·회원 데이터는 보존됩니다)\n\n계속?")) return;
+  try{
+    if("serviceWorker" in navigator){
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for(const r of regs) await r.unregister();
+    }
+    if("caches" in window){
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+    alert("✓ 캐시 삭제 완료. 새로고침합니다.");
+    // URL에 타임스탬프 붙여 완전 새로고침
+    location.href = location.pathname + "?v=" + Date.now();
+  }catch(err){
+    alert("오류: " + err.message);
+  }
 }
 </script>
 </body>

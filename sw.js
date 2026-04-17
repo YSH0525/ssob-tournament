@@ -1,60 +1,48 @@
-/* SSOB 대진표 서비스워커 — 오프라인 캐시 */
-const CACHE_NAME = "ssob-v4";
-const CORE_ASSETS = [
-  "./",
-  "./index.html",
-  "./manifest.json",
-  "./icon.svg",
-  "./icon-maskable.svg"
-];
-
-// 외부 CDN (설치시 캐시 안함, 런타임 캐시)
-const RUNTIME_CACHE = "ssob-runtime-v4";
+/* SSOB 대진표 서비스워커 — network-first로 항상 최신 */
+const CACHE_NAME = "ssob-v5";
+const RUNTIME_CACHE = "ssob-runtime-v5";
 
 self.addEventListener("install", e => {
-  e.waitUntil(
-    caches.open(CACHE_NAME).then(c => c.addAll(CORE_ASSETS)).then(() => self.skipWaiting())
-  );
+  self.skipWaiting(); // 설치 즉시 활성화
 });
 
 self.addEventListener("activate", e => {
-  e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME && k !== RUNTIME_CACHE).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
-  );
+  e.waitUntil((async () => {
+    // 옛 캐시 전부 삭제
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(k => k !== CACHE_NAME && k !== RUNTIME_CACHE).map(k => caches.delete(k)));
+    // 모든 탭 즉시 제어권 획득
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener("fetch", e => {
   const req = e.request;
+  if (req.method !== "GET") return;
   const url = new URL(req.url);
 
-  // POST/PUT 등 비-GET: 네트워크만
-  if (req.method !== "GET") return;
-
-  // AI API 호출(Gemini/Claude/OpenAI): 캐시 안함 - 항상 네트워크
+  // AI API: 항상 네트워크, 캐시 절대 안함
   if (
     url.hostname.includes("generativelanguage.googleapis.com") ||
     url.hostname.includes("api.anthropic.com") ||
-    url.hostname.includes("api.openai.com")
+    url.hostname.includes("api.openai.com") ||
+    url.hostname.includes("supabase.co")
   ) return;
 
-  // CDN(라이브러리): 캐시 우선 + 백그라운드 갱신
+  // HTML/JS/CSS 자체 자원: network-first (새 버전 즉시 반영)
+  if (url.origin === location.origin) {
+    e.respondWith(networkFirst(req, CACHE_NAME));
+    return;
+  }
+
+  // CDN 라이브러리: cache-first (버전 고정 URL이라 안전)
   if (url.hostname.includes("cdn.jsdelivr.net") || url.hostname.includes("tessdata")) {
     e.respondWith(cacheFirst(req, RUNTIME_CACHE));
     return;
   }
-
-  // 자체 자원: 캐시 우선, 없으면 네트워크
-  if (url.origin === location.origin) {
-    e.respondWith(cacheFirst(req, CACHE_NAME));
-    return;
-  }
 });
 
-async function cacheFirst(req, cacheName) {
-  const cached = await caches.match(req);
-  if (cached) return cached;
+async function networkFirst(req, cacheName) {
   try {
     const res = await fetch(req);
     if (res.ok) {
@@ -63,10 +51,30 @@ async function cacheFirst(req, cacheName) {
     }
     return res;
   } catch (err) {
-    // 오프라인 + 캐시 미스
+    const cached = await caches.match(req);
+    if (cached) return cached;
     if (req.destination === "document") {
       return caches.match("./index.html");
     }
     throw err;
   }
 }
+
+async function cacheFirst(req, cacheName) {
+  const cached = await caches.match(req);
+  if (cached) return cached;
+  const res = await fetch(req);
+  if (res.ok) {
+    const cache = await caches.open(cacheName);
+    cache.put(req, res.clone());
+  }
+  return res;
+}
+
+// 수동 업데이트 트리거
+self.addEventListener("message", e => {
+  if (e.data === "skipWaiting") self.skipWaiting();
+  if (e.data === "clearCaches") {
+    caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))));
+  }
+});
