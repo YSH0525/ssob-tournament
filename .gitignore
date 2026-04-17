@@ -32,3 +32,10 @@ exports/
 
 # 브라우저 테스트 캐시
 .cache/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
