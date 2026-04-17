@@ -120,7 +120,7 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.1</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.2</span>
 </header>
 
 <nav class="tabs">
@@ -2869,9 +2869,14 @@ async function runAiOcr(mode){
     else if(s.provider==="claude") json = await callClaudeVision(s,b64,prompt);
     else json = await callOpenAIVision(s,b64,prompt);
 
-    const rawEl = document.getElementById("ocrRawText");
-    if(rawEl) rawEl.textContent = JSON.stringify(json,null,2);
-    if(!json.games || !Array.isArray(json.games)) throw new Error("응답에 games 배열이 없습니다");
+    console.log("AI 응답:", json);
+    if(!json.games || !Array.isArray(json.games)){
+      console.error("games 배열 없음. 원시 응답:", json);
+      throw new Error(`응답 형식 오류: games 배열이 없습니다.\n\n응답: ${JSON.stringify(json).slice(0,300)}`);
+    }
+    if(json.games.length===0){
+      throw new Error("AI가 대진표 이미지를 인식하지 못했습니다.\n- 이미지가 흐리거나 작을 수 있음\n- 표 전체가 프레임에 들어왔는지 확인\n- 회전이 필요한지 확인");
+    }
 
     ocrParsedRows = json.games.map(g=>({
       gameNo: g.gameNo || 0,
@@ -2882,6 +2887,10 @@ async function runAiOcr(mode){
       s1: g.s1||"",
       s2: g.s2||""
     })).filter(r=>r.gameNo>0).sort((a,b)=>a.gameNo-b.gameNo);
+
+    if(ocrParsedRows.length===0){
+      throw new Error(`게임번호가 있는 행이 없습니다.\n\n원시 응답: ${JSON.stringify(json.games).slice(0,400)}`);
+    }
     // roster: 객체 배열 또는 문자열 배열 모두 수용
     if(Array.isArray(json.roster)){
       ocrRoster = json.roster.map(r=>{
@@ -3068,12 +3077,30 @@ async function callOpenAIVision(s,b64,prompt){
 }
 
 function parseJsonFromText(t){
+  if(!t) throw new Error("빈 응답");
   // 코드펜스 제거
-  let s = t.trim().replace(/^```(?:json)?\s*/i,"").replace(/```\s*$/,"").trim();
-  // 첫 { ~ 마지막 } 추출
+  let s = t.trim()
+    .replace(/^```(?:json)?\s*/i,"")
+    .replace(/```\s*$/,"")
+    .trim();
+  // 첫 { ~ 마지막 } 추출 (최상위 객체만)
   const i = s.indexOf("{"), j = s.lastIndexOf("}");
-  if(i>=0 && j>i) s = s.slice(i,j+1);
-  return JSON.parse(s);
+  if(i<0 || j<=i) throw new Error(`JSON 형식 아님:\n\n${t.slice(0,300)}`);
+  s = s.slice(i,j+1);
+  try {
+    return JSON.parse(s);
+  } catch(e){
+    // 흔한 오류: trailing comma, single quotes
+    const cleaned = s
+      .replace(/,(\s*[}\]])/g, "$1")       // trailing comma
+      .replace(/([{,]\s*)'([^']+)'\s*:/g, '$1"$2":')  // single quote keys
+      .replace(/:\s*'([^']*)'/g, ': "$1"'); // single quote values
+    try {
+      return JSON.parse(cleaned);
+    } catch(e2){
+      throw new Error(`JSON 파싱 실패: ${e.message}\n\n원시 텍스트:\n${t.slice(0,300)}`);
+    }
+  }
 }
 
 /* Levenshtein 거리 */
