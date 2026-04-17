@@ -2,8 +2,17 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
 <title>S.S.O.B 대진표 관리</title>
+<!-- PWA -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#111827" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="SSOB" />
+<link rel="icon" type="image/svg+xml" href="icon.svg" />
+<link rel="apple-touch-icon" href="icon.svg" />
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <style>
@@ -3142,6 +3151,15 @@ document.getElementById("meetName").addEventListener("change",e=>{state.name=e.t
 load();
 renderAll();
 loadAiSettings();
+
+/* 서비스워커 등록 (PWA) */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(err => {
+      console.warn("SW 등록 실패:", err);
+    });
+  });
+}
 </script>
 </body>
 </html>

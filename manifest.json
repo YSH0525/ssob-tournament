@@ -1,0 +1,42 @@
+{
+  "name": "S.S.O.B 대진표",
+  "short_name": "SSOB",
+  "description": "배드민턴 모임 대진표 관리",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f5f6f8",
+  "theme_color": "#111827",
+  "lang": "ko",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["sports", "productivity"],
+  "shortcuts": [
+    {
+      "name": "대진표 입력",
+      "url": "./index.html#bracket",
+      "icons": [{"src": "icon.svg", "sizes": "any", "type": "image/svg+xml"}]
+    },
+    {
+      "name": "결과 입력",
+      "url": "./index.html#results"
+    },
+    {
+      "name": "순위 보기",
+      "url": "./index.html#rank"
+    }
+  ]
+}
