@@ -1,5 +1,5 @@
 /* SSOB 대진표 서비스워커 — 오프라인 캐시 */
-const CACHE_NAME = "ssob-v3";
+const CACHE_NAME = "ssob-v4";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -9,7 +9,7 @@ const CORE_ASSETS = [
 ];
 
 // 외부 CDN (설치시 캐시 안함, 런타임 캐시)
-const RUNTIME_CACHE = "ssob-runtime-v3";
+const RUNTIME_CACHE = "ssob-runtime-v4";
 
 self.addEventListener("install", e => {
   e.waitUntil(

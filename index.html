@@ -120,7 +120,7 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.2</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.3</span>
 </header>
 
 <nav class="tabs">
@@ -227,6 +227,11 @@
         <span class="muted" id="aiKeyStatus"></span>
       </div>
       <div class="muted" style="margin-top:6px;font-size:12px" id="aiKeyHint"></div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn sec small" onclick="aiTestKey()">🧪 연결 테스트</button>
+        <button class="btn sec small" onclick="showLastAiLog()">📋 마지막 AI 응답 보기</button>
+      </div>
+      <pre id="aiTestResult" style="font-size:11px;background:#f3f4f6;padding:6px;border-radius:4px;margin-top:6px;max-height:140px;overflow:auto;white-space:pre-wrap;display:none"></pre>
     </div>
 
     <div class="card">
@@ -2781,6 +2786,107 @@ function parseOcrIntoRows(){
   renderOcrReview();
 }
 
+/* ============ AI 연결 테스트 + 디버그 로그 ============ */
+const AI_LOG_KEY = "ssob_ai_lastlog_v1";
+function saveAiLog(obj){
+  try{ localStorage.setItem(AI_LOG_KEY, JSON.stringify({...obj, time: new Date().toISOString()})); }catch(e){}
+}
+function getAiLog(){
+  try{ return JSON.parse(localStorage.getItem(AI_LOG_KEY)||"null"); }catch(e){ return null; }
+}
+function showLastAiLog(){
+  const log = getAiLog();
+  const el = document.getElementById("aiTestResult");
+  if(!log){
+    el.style.display="block";
+    el.textContent = "기록된 AI 호출 없음.";
+    return;
+  }
+  el.style.display="block";
+  el.textContent =
+    `[${log.time||"?"}] ${log.phase||""}\n` +
+    (log.error ? `❌ 오류: ${log.error}\n` : `✓ 성공\n`) +
+    (log.prompt ? `\n--- 프롬프트 (처음 200자) ---\n${String(log.prompt).slice(0,200)}\n` : "") +
+    (log.rawText ? `\n--- 응답 원문 (처음 800자) ---\n${String(log.rawText).slice(0,800)}\n` : "") +
+    (log.parsed ? `\n--- 파싱된 JSON (처음 800자) ---\n${JSON.stringify(log.parsed).slice(0,800)}\n` : "");
+}
+
+async function aiTestKey(){
+  const s = getAiSettings();
+  const el = document.getElementById("aiTestResult");
+  el.style.display="block";
+  el.textContent = "⏳ 테스트 호출 중...";
+  if(!s.key){ el.textContent = "❌ API 키 미등록"; return; }
+  saveAiLog({phase:"테스트 시작", provider:s.provider, model:s.model});
+  try{
+    let res;
+    if(s.provider==="gemini"){
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(s.model)}:generateContent?key=${encodeURIComponent(s.key)}`;
+      const r = await fetch(url,{
+        method:"POST",
+        headers:{"content-type":"application/json"},
+        body: JSON.stringify({
+          contents:[{parts:[{text:'Reply with exactly this JSON: {"ok":true,"hello":"world"}'}]}],
+          generationConfig:{response_mime_type:"application/json"}
+        })
+      });
+      const txt = await r.text();
+      if(!r.ok){
+        saveAiLog({phase:"Gemini 테스트", error:`HTTP ${r.status}`, rawText:txt});
+        el.textContent = `❌ Gemini API 오류 (HTTP ${r.status})\n\n${txt.slice(0,500)}`;
+        return;
+      }
+      const data = JSON.parse(txt);
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      saveAiLog({phase:"Gemini 테스트", rawText:text, parsed:data});
+      el.textContent = `✓ Gemini 연결 성공\n모델: ${s.model}\n응답: ${text}`;
+    } else if(s.provider==="claude"){
+      const r = await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{
+          "x-api-key": s.key,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          model: s.model, max_tokens: 100,
+          messages:[{role:"user",content:"Reply: ok"}]
+        })
+      });
+      const txt = await r.text();
+      if(!r.ok){
+        saveAiLog({phase:"Claude 테스트", error:`HTTP ${r.status}`, rawText:txt});
+        el.textContent = `❌ Claude API 오류 (HTTP ${r.status})\n\n${txt.slice(0,500)}`;
+        return;
+      }
+      const data = JSON.parse(txt);
+      const text = data.content?.[0]?.text || "";
+      saveAiLog({phase:"Claude 테스트", rawText:text});
+      el.textContent = `✓ Claude 연결 성공\n모델: ${s.model}\n응답: ${text}`;
+    } else {
+      const r = await fetch("https://api.openai.com/v1/chat/completions",{
+        method:"POST",
+        headers:{"Authorization":"Bearer "+s.key, "content-type":"application/json"},
+        body: JSON.stringify({model:s.model, max_tokens:50, messages:[{role:"user",content:"Reply: ok"}]})
+      });
+      const txt = await r.text();
+      if(!r.ok){
+        saveAiLog({phase:"OpenAI 테스트", error:`HTTP ${r.status}`, rawText:txt});
+        el.textContent = `❌ OpenAI API 오류 (HTTP ${r.status})\n\n${txt.slice(0,500)}`;
+        return;
+      }
+      const data = JSON.parse(txt);
+      const text = data.choices?.[0]?.message?.content || "";
+      saveAiLog({phase:"OpenAI 테스트", rawText:text});
+      el.textContent = `✓ OpenAI 연결 성공\n모델: ${s.model}\n응답: ${text}`;
+    }
+  }catch(err){
+    saveAiLog({phase:"테스트 실패", error:err.message});
+    el.textContent = `❌ 네트워크/키 오류\n\n${err.message}\n\n가능 원인:\n- API 키 오타\n- 인터넷 차단\n- 통신사 DNS (1.1.1.1 설정 권장)`;
+  }
+}
+
 /* ============ AI 비전 OCR ============ */
 function canvasToBase64Jpeg(maxSide=1600,quality=0.85){
   const c = document.getElementById("ocrCanvas");
@@ -2870,6 +2976,7 @@ async function runAiOcr(mode){
     else json = await callOpenAIVision(s,b64,prompt);
 
     console.log("AI 응답:", json);
+    saveAiLog({phase:`${modeLabel} 인식`, provider:s.provider, model:s.model, parsed:json});
     if(!json.games || !Array.isArray(json.games)){
       console.error("games 배열 없음. 원시 응답:", json);
       throw new Error(`응답 형식 오류: games 배열이 없습니다.\n\n응답: ${JSON.stringify(json).slice(0,300)}`);
@@ -2916,7 +3023,8 @@ async function runAiOcr(mode){
     }
   }catch(err){
     console.error("AI OCR 오류:", err);
-    alert(`AI 인식 실패 (${modeLabel}):\n${err.message}`);
+    saveAiLog({phase:`${modeLabel} 인식 실패`, provider:s.provider, model:s.model, error:err.message});
+    alert(`AI 인식 실패 (${modeLabel}):\n${err.message}\n\n"대회설정 탭 → 📋 마지막 AI 응답 보기" 로 상세 확인`);
   } finally {
     if(btn){ btn.disabled = false; btn.textContent = originalText; }
   }
