@@ -2852,11 +2852,12 @@ function getAiPrompt(mode){
 async function runAiOcr(mode){
   if(!ocrImage){alert("이미지를 먼저 선택하세요");return}
   const s = getAiSettings();
-  if(!s.key){alert("대회설정 탭에서 API 키를 먼저 등록하세요");return}
+  if(!s.key){alert("대회설정 탭 → AI 비전 설정에서 API 키를 먼저 등록하세요\n(무료: Gemini 추천)");return}
   ocrMode = mode || ocrMode;
   const btnId = ocrMode==="results" ? "resultsAiBtn" : "bracketAiBtn";
   const btn = document.getElementById(btnId);
-  if(btn) btn.disabled = true;
+  const originalText = btn ? btn.textContent : "";
+  if(btn){ btn.disabled = true; btn.textContent = "🔄 인식 중..."; }
   const modeLabel = ocrMode==="results" ? "결과 (수기)" : "대진표";
   // 상태표시 - 버튼 옆 또는 alert
   try{
@@ -2894,18 +2895,20 @@ async function runAiOcr(mode){
       }).filter(r=>/^[\uAC00-\uD7A3]{2,5}$/.test(r.name));
     } else ocrRoster = [];
 
-    renderOcrReview();
+    // 모달 먼저 생성 후 렌더 (렌더가 DOM 요소 참조하므로)
     const card = document.getElementById("ocrResultCard");
     if(card){
       card.classList.remove("hidden");
+      renderOcrReview();
       card.scrollIntoView({behavior:"smooth",block:"start"});
     } else {
-      showOcrReviewModal();
+      showOcrReviewModal();  // 내부에서 renderOcrReview 호출
     }
   }catch(err){
+    console.error("AI OCR 오류:", err);
     alert(`AI 인식 실패 (${modeLabel}):\n${err.message}`);
   } finally {
-    if(btn) btn.disabled = false;
+    if(btn){ btn.disabled = false; btn.textContent = originalText; }
   }
 }
 
@@ -3122,6 +3125,7 @@ function renderOcrReview(){
   }
 
   const body = document.getElementById("ocrReviewBody");
+  if(!body) return; // 모달이 아직 생성되지 않음 — 안전 종료
   body.innerHTML = "";
   const listId = "dl-players";
   if(!document.getElementById(listId)){
