@@ -15,6 +15,7 @@
 <link rel="apple-touch-icon" href="icon.svg" />
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   :root{
     --bg:#f5f6f8; --card:#fff; --line:#d8dbe0; --ink:#1f2937;
@@ -128,7 +129,9 @@
   <button data-tab="results">📝 결과</button>
   <button data-tab="rank">순위</button>
   <button data-tab="player">개인기록</button>
+  <button data-tab="advanced">📊 심화통계</button>
   <button data-tab="history">누적/내역</button>
+  <button data-tab="sync">☁️ 동기화</button>
   <button data-tab="share">공유</button>
 </nav>
 
@@ -223,6 +226,37 @@
         <span class="muted" id="aiKeyStatus"></span>
       </div>
       <div class="muted" style="margin-top:6px;font-size:12px" id="aiKeyHint"></div>
+    </div>
+
+    <div class="card">
+      <h2>🔁 지난 대회 복제</h2>
+      <div class="muted" style="margin-bottom:8px;font-size:12px">
+        저장된 대회의 참가자·회원 상태를 그대로 가져와 새 대회를 시작합니다.
+      </div>
+      <div class="row">
+        <select id="cloneMeetSel" style="flex:1"></select>
+        <label><input type="checkbox" id="cloneReshuffle" checked /> 랜덤 재배정</label>
+        <button class="btn" onclick="cloneMeet()">복제 시작</button>
+      </div>
+      <div class="muted" style="margin-top:6px;font-size:11px">
+        · 체크시: 명단만 가져오고 대진/점수는 새로 랜덤 생성<br>
+        · 미체크: 대진까지 그대로 복제 (점수만 초기화)
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🔗 Kakao 공유 설정 (선택)</h2>
+      <div class="muted" style="margin-bottom:8px;font-size:12px">
+        Kakao 앱 키를 등록하면 전용 카톡 공유 버튼이 활성화됩니다.<br>
+        미등록시에는 시스템 공유(Web Share) 사용 — 대부분 기기에서 정상 동작.
+      </div>
+      <div class="row">
+        <input type="password" id="kakaoKey" placeholder="Kakao JavaScript 앱 키" style="flex:1;min-width:180px" onchange="saveKakaoKey()" />
+        <button class="btn sec small" onclick="document.getElementById('kakaoKey').type = document.getElementById('kakaoKey').type==='password'?'text':'password'">👁</button>
+      </div>
+      <div class="muted" style="margin-top:4px;font-size:11px">
+        발급: <a href="https://developers.kakao.com" target="_blank">developers.kakao.com</a> → 내 애플리케이션 → 앱 설정 → 플랫폼(웹) 등록 → JavaScript 키 복사
+      </div>
     </div>
 
     <div class="card">
@@ -591,6 +625,42 @@
     </div>
   </section>
 
+  <!-- 심화 통계 -->
+  <section id="tab-advanced" class="hidden">
+    <div class="card">
+      <h2>📊 심화 통계</h2>
+      <div class="row">
+        <label>기간</label>
+        <select id="advRange" onchange="renderAdvanced()">
+          <option value="current">현재 대회만</option>
+          <option value="all" selected>누적 (전체)</option>
+          <option value="year">올해</option>
+          <option value="month">이번달</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🏆 MVP / 베스트</h2>
+      <div id="advMvpBox"></div>
+    </div>
+
+    <div class="card">
+      <h2>🤝 파트너 궁합 (최다 우승 조합)</h2>
+      <div class="muted" style="font-size:12px;margin-bottom:6px">같은 팀일 때 승률</div>
+      <div id="advPartnerBox"></div>
+    </div>
+
+    <div class="card">
+      <h2>⚔️ 상대 전적 (Head to Head)</h2>
+      <div class="row">
+        <label>기준 선수</label>
+        <select id="advH2hSel" onchange="renderAdvanced()"></select>
+      </div>
+      <div id="advH2hBox" style="margin-top:8px"></div>
+    </div>
+  </section>
+
   <!-- 누적 -->
   <section id="tab-history" class="hidden">
     <div class="card">
@@ -611,15 +681,93 @@
     </div>
   </section>
 
+  <!-- 클라우드 동기화 -->
+  <section id="tab-sync" class="hidden">
+    <div class="card">
+      <h2>☁️ Supabase 연동</h2>
+      <div class="muted" style="margin-bottom:8px;font-size:12px">
+        총무 1명이 Supabase 무료 프로젝트를 만들고, 참가자들과 URL/anon key를 공유하면<br>
+        대회 데이터가 모든 기기에서 동기화됩니다. <b>실시간 반영 지원.</b>
+      </div>
+
+      <details style="margin-bottom:10px">
+        <summary style="cursor:pointer;font-weight:600">📘 설정 가이드 (처음 1회)</summary>
+        <div style="padding:8px;background:#f9fafb;border-radius:6px;margin-top:6px;font-size:13px;line-height:1.6">
+          <b>1) Supabase 프로젝트 생성</b><br>
+          → <a href="https://supabase.com" target="_blank">supabase.com</a> 가입 → New project → 이름/비밀번호 설정<br><br>
+          <b>2) 테이블 생성</b> (SQL Editor에서 아래 붙여넣기 → Run)<br>
+          <pre style="background:#fff;padding:8px;border-radius:4px;font-size:11px;overflow:auto">create table if not exists ssob_meets (
+  id text primary key,
+  data jsonb not null,
+  updated_at timestamptz default now()
+);
+create table if not exists ssob_members (
+  id text primary key,
+  data jsonb not null,
+  updated_at timestamptz default now()
+);
+alter table ssob_meets enable row level security;
+alter table ssob_members enable row level security;
+create policy "public read" on ssob_meets for select using (true);
+create policy "public read" on ssob_members for select using (true);
+create policy "public write" on ssob_meets for insert with check (true);
+create policy "public write" on ssob_meets for update using (true);
+create policy "public write" on ssob_members for insert with check (true);
+create policy "public write" on ssob_members for update using (true);</pre>
+          <b>3) Realtime 활성화</b>: Database → Replication → 두 테이블 체크<br>
+          <b>4) URL/키 복사</b>: Settings → API → Project URL + anon public key<br>
+          <b>5) 참가자 공유</b>: 아래 URL/키를 톡방에 공유 (anon 키는 공개 안전)
+        </div>
+      </details>
+
+      <div class="row">
+        <input type="text" id="supaUrl" placeholder="https://xxxxx.supabase.co" style="flex:1;min-width:200px" onchange="saveSupaSettings()"/>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <input type="password" id="supaKey" placeholder="anon public key (eyJ...)" style="flex:1;min-width:200px" onchange="saveSupaSettings()"/>
+        <button class="btn sec small" onclick="document.getElementById('supaKey').type = document.getElementById('supaKey').type==='password'?'text':'password'">👁</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" onclick="supaConnect()">🔌 연결 테스트</button>
+        <span id="supaStatus" class="muted"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🔄 동기화 작업</h2>
+      <div class="row" style="flex-wrap:wrap">
+        <button class="btn" onclick="supaPushAll()">⬆️ 내 데이터 → 클라우드</button>
+        <button class="btn sec" onclick="supaPullAll()">⬇️ 클라우드 → 내 데이터</button>
+        <button class="btn sec" onclick="supaPushCurrent()">⬆️ 현재 대회만 업로드</button>
+      </div>
+      <div class="muted" style="margin-top:6px;font-size:12px">
+        · ⬆️ 업로드: 내 기기 데이터로 클라우드 덮어씀 (총무용)<br>
+        · ⬇️ 다운로드: 클라우드 데이터로 내 기기 덮어씀 (조회용)
+      </div>
+      <div class="row" style="margin-top:10px">
+        <label><input type="checkbox" id="supaAutoSync" onchange="toggleAutoSync()"/> <b>실시간 자동 동기화</b></label>
+        <span class="muted" style="font-size:11px">변경사항 즉시 반영 (읽기 전용 추천)</span>
+      </div>
+      <div id="supaSyncLog" class="muted" style="margin-top:8px;font-size:11px;max-height:120px;overflow:auto;font-family:monospace"></div>
+    </div>
+  </section>
+
   <!-- 공유 -->
   <section id="tab-share" class="hidden">
     <div class="card">
       <h2>결과 이미지 공유</h2>
-      <div class="row">
-        <button class="btn" onclick="exportImage('shareBracket')">📷 대진표+결과 이미지</button>
+      <div class="row" style="flex-wrap:wrap">
+        <button class="btn" onclick="exportImage('shareBracket')">📷 대진표 이미지</button>
         <button class="btn sec" onclick="exportImage('shareRank')">📊 순위표 이미지</button>
       </div>
-      <div class="muted" style="margin-top:6px">이미지를 저장해 톡방에 업로드하세요.</div>
+      <div class="row" style="margin-top:8px;flex-wrap:wrap">
+        <button class="btn" onclick="shareToApps('shareBracket')">💬 대진표 공유(카톡/앱)</button>
+        <button class="btn sec" onclick="shareToApps('shareRank')">💬 순위표 공유(카톡/앱)</button>
+      </div>
+      <div class="muted" style="margin-top:6px">
+        · 저장: 갤러리/다운로드 폴더에 PNG 저장<br>
+        · 공유: 시스템 공유 시트 → 카톡/메시지/기타 앱 선택 (Kakao 키 등록시 직접 카톡)
+      </div>
 
       <div id="shareBracket" class="share-preview"></div>
       <div id="shareRank" class="share-preview"></div>
@@ -688,6 +836,9 @@ function switchTab(name){
   if(name==="members") {renderMembers(); renderFines();}
   if(name==="results") renderResultsTable();
   if(name==="games") renderGenParticipants();
+  if(name==="advanced") renderAdvanced();
+  if(name==="sync") { loadSupaSettings(); }
+  if(name==="setup") renderCloneList();
 }
 document.querySelectorAll("nav.tabs button").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
 
@@ -3133,6 +3284,449 @@ function ocrApply(){
   ocrParsedRows = []; ocrRoster = [];
 }
 
+/* ============ 대회 복제 ============ */
+function renderCloneList(){
+  const sel = document.getElementById("cloneMeetSel");
+  if(!sel) return;
+  const meets = getMeets();
+  const keys = Object.keys(meets).sort().reverse();
+  sel.innerHTML = keys.length
+    ? keys.map(k=>{
+        const m = meets[k];
+        return `<option value="${escapeAttr(k)}">${escapeHtml(k)} (${m.players?.length||0}명)</option>`;
+      }).join("")
+    : `<option value="">저장된 대회 없음</option>`;
+}
+function cloneMeet(){
+  const key = document.getElementById("cloneMeetSel").value;
+  if(!key){ alert("복제할 대회 선택"); return; }
+  const meets = getMeets();
+  const src = meets[key];
+  if(!src){ alert("원본 대회를 찾을 수 없음"); return; }
+  const reshuffle = document.getElementById("cloneReshuffle").checked;
+
+  // 새 대회 정보
+  const today = new Date().toISOString().slice(0,10);
+  state = {
+    date: today,
+    name: src.name || "S.S.O.B",
+    players: JSON.parse(JSON.stringify(src.players||[])).map(p=>({
+      ...p, cock:"", mf:"", mx:"", donation:""
+    })),
+    games: []
+  };
+
+  if(reshuffle){
+    // 랜덤 재배정
+    const members = getMembers();
+    const memberByName = {};
+    Object.values(members).forEach(m=>{memberByName[m.name]=m});
+    const selected = state.players.map(p=>{
+      const m = memberByName[p.name];
+      return {
+        id: m?m.id:("x_"+p.name),
+        name: p.name,
+        gender: m?m.gender:"M",
+        isGuest: p.isGuest
+      };
+    });
+    // 기본: 4게임, 전 종목, 첫 유효 케이스
+    try{
+      const gpp = 4;
+      const types = ["남복","여복","혼복"];
+      const r = generateRandomGames(selected, types, gpp);
+      state.games = r.games;
+      alert(`복제 + 랜덤 재배정 완료\n${r.games.length}게임 생성`);
+    }catch(err){
+      alert("재배정 실패: "+err.message+"\n명단만 복제되었습니다.");
+    }
+  } else {
+    // 대진까지 복제 (점수 초기화)
+    state.games = (src.games||[]).map(g=>({...g, s1:"", s2:""}));
+    alert(`대회 복제 완료\n${state.games.length}게임 · ${state.players.length}명`);
+  }
+
+  persist(); renderAll();
+  switchTab("games");
+}
+
+/* ============ 심화 통계 ============ */
+function filterMeetsByRange(range){
+  const meets = getMeets();
+  const arr = Object.values(meets);
+  if(range==="current"){
+    // 현재 state가 저장된 대회와 별개일 수 있으나, 즉석 계산 위해 state 단독 사용
+    return [state];
+  }
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  return arr.filter(mt=>{
+    if(range==="all") return true;
+    const d = new Date(mt.date);
+    if(range==="year") return d.getFullYear()===y;
+    if(range==="month") return d.getFullYear()===y && d.getMonth()===m;
+    return true;
+  });
+}
+function aggregateAdvanced(meetsArr){
+  const h2h = {};          // name_a|name_b -> {wins, losses}
+  const partners = {};     // name_a|name_b -> {wins, losses, games}
+  const mvp = {};          // name -> {wins, losses, games, meetsPlayed, points, pointsDiff}
+
+  const ensure = (bag, key, extra={}) => {
+    if(!bag[key]) bag[key] = {wins:0, losses:0, games:0, ...extra};
+    return bag[key];
+  };
+  const pairKey = (a,b) => [a,b].sort((x,y)=>x.localeCompare(y,"ko")).join("|");
+
+  meetsArr.forEach(mt=>{
+    const seenPlayers = new Set();
+    (mt.games||[]).forEach(g=>{
+      const s1=parseInt(g.s1), s2=parseInt(g.s2);
+      if(isNaN(s1)||isNaN(s2)) return;
+      const team1 = [g.t1a,g.t1b].filter(Boolean);
+      const team2 = [g.t2a,g.t2b].filter(Boolean);
+      if(team1.length!==2||team2.length!==2) return;
+      const winTeam = s1>s2?team1:(s2>s1?team2:null);
+      const loseTeam = winTeam===team1?team2:(winTeam===team2?team1:null);
+
+      // MVP 집계
+      [...team1,...team2].forEach(n=>{
+        const r = ensure(mvp, n, {points:0, pointsDiff:0, meetsPlayed:new Set()});
+        r.games++;
+        r.meetsPlayed.add(mt.date+"_"+mt.name);
+      });
+      team1.forEach(n=>{const r=ensure(mvp,n,{points:0,pointsDiff:0,meetsPlayed:new Set()}); r.points+=s1; r.pointsDiff+=(s1-s2);});
+      team2.forEach(n=>{const r=ensure(mvp,n,{points:0,pointsDiff:0,meetsPlayed:new Set()}); r.points+=s2; r.pointsDiff+=(s2-s1);});
+      if(winTeam){
+        winTeam.forEach(n=>ensure(mvp,n,{points:0,pointsDiff:0,meetsPlayed:new Set()}).wins++);
+        loseTeam.forEach(n=>ensure(mvp,n,{points:0,pointsDiff:0,meetsPlayed:new Set()}).losses++);
+      }
+
+      // 상대전적 (팀1 각 vs 팀2 각)
+      team1.forEach(a=>team2.forEach(b=>{
+        const k = pairKey(a,b);
+        const rec = ensure(h2h, k);
+        rec.games++;
+        if(winTeam===team1){
+          // a 승, b 패
+          if(a.localeCompare(b,"ko")<0){ rec.wins++; } else { rec.losses++; }
+        } else if(winTeam===team2){
+          if(a.localeCompare(b,"ko")<0){ rec.losses++; } else { rec.wins++; }
+        }
+      }));
+      // 파트너 궁합
+      [[team1,winTeam===team1],[team2,winTeam===team2]].forEach(([team,won])=>{
+        const [a,b] = team;
+        const k = pairKey(a,b);
+        const rec = ensure(partners, k);
+        rec.games++;
+        if(winTeam && won) rec.wins++;
+        else if(winTeam && !won) rec.losses++;
+      });
+    });
+  });
+
+  Object.values(mvp).forEach(r=>{ r.meetsCount = r.meetsPlayed.size; delete r.meetsPlayed; });
+
+  return {h2h, partners, mvp};
+}
+function renderAdvanced(){
+  const range = document.getElementById("advRange")?.value || "all";
+  const meetsArr = filterMeetsByRange(range);
+  const {h2h, partners, mvp} = aggregateAdvanced(meetsArr);
+
+  // MVP 박스
+  const mvpArr = Object.entries(mvp).map(([name,r])=>({name,...r}))
+    .filter(p=>p.games>0)
+    .map(p=>({...p, winRate: p.games?+(p.wins/p.games*100).toFixed(1):0}));
+  mvpArr.sort((a,b)=>b.wins-a.wins || b.pointsDiff-a.pointsDiff || b.points-a.points);
+
+  const mvpBox = document.getElementById("advMvpBox");
+  if(mvpArr.length===0){
+    mvpBox.innerHTML = `<div class="muted">해당 기간 경기 결과 없음.</div>`;
+  } else {
+    const top5 = mvpArr.slice(0,5);
+    const medals = ["🥇","🥈","🥉","4위","5위"];
+    let h = `<div style="display:grid;gap:6px">`;
+    top5.forEach((p,i)=>{
+      h += `<div style="display:flex;gap:10px;align-items:center;padding:8px;background:${i===0?"#fef3c7":"#f9fafb"};border-radius:6px">
+        <span style="font-size:18px">${medals[i]}</span>
+        <b style="flex:0 0 80px">${escapeHtml(p.name)}</b>
+        <span style="flex:1;font-size:13px">
+          ${p.wins}승 ${p.losses}패 · 승률 ${p.winRate}% · 득실 ${p.pointsDiff>=0?"+":""}${p.pointsDiff}
+        </span>
+        <span class="muted" style="font-size:11px">${p.meetsCount}회 참여</span>
+      </div>`;
+    });
+    h += `</div>
+      <details style="margin-top:10px"><summary class="muted">전체 순위 (${mvpArr.length}명)</summary>
+      <table class="stats-table" style="margin-top:6px"><thead><tr><th>#</th><th>이름</th><th>참여</th><th>출전</th><th>승</th><th>패</th><th>승률</th><th>득실</th></tr></thead><tbody>
+      ${mvpArr.map((p,i)=>`<tr><td>${i+1}</td><td style="text-align:left;padding-left:8px">${escapeHtml(p.name)}</td><td>${p.meetsCount}</td><td>${p.games}</td><td>${p.wins}</td><td>${p.losses}</td><td>${p.winRate}%</td><td>${p.pointsDiff>=0?"+":""}${p.pointsDiff}</td></tr>`).join("")}
+      </tbody></table></details>`;
+    mvpBox.innerHTML = h;
+  }
+
+  // 파트너 궁합
+  const partnerBox = document.getElementById("advPartnerBox");
+  const partArr = Object.entries(partners).map(([k,r])=>{
+    const [a,b] = k.split("|");
+    return {a,b,...r, winRate: r.games?+(r.wins/r.games*100).toFixed(1):0};
+  }).filter(p=>p.games>=2);
+  partArr.sort((a,b)=>b.winRate-a.winRate || b.wins-a.wins);
+  if(partArr.length===0){
+    partnerBox.innerHTML = `<div class="muted">파트너 기록 없음 (최소 2게임 같은 팀 필요).</div>`;
+  } else {
+    const top = partArr.slice(0,10);
+    partnerBox.innerHTML = `<table class="stats-table"><thead><tr><th>#</th><th>파트너 조합</th><th>게임</th><th>승</th><th>패</th><th>승률</th></tr></thead><tbody>
+      ${top.map((p,i)=>`<tr>
+        <td>${i+1}</td>
+        <td style="text-align:left;padding-left:8px">${escapeHtml(p.a)} & ${escapeHtml(p.b)}</td>
+        <td>${p.games}</td>
+        <td class="tag w" style="border:0">${p.wins}</td>
+        <td class="tag l" style="border:0">${p.losses}</td>
+        <td><b>${p.winRate}%</b></td>
+      </tr>`).join("")}
+    </tbody></table>`;
+  }
+
+  // 상대전적 셀렉터
+  const sel = document.getElementById("advH2hSel");
+  const names = [...new Set(Object.keys(mvp))].sort((a,b)=>a.localeCompare(b,"ko"));
+  const currentName = sel.value;
+  sel.innerHTML = `<option value="">-- 선택 --</option>` + names.map(n=>`<option value="${escapeAttr(n)}" ${n===currentName?"selected":""}>${escapeHtml(n)}</option>`).join("");
+  const chosen = sel.value;
+  const h2hBox = document.getElementById("advH2hBox");
+  if(!chosen){
+    h2hBox.innerHTML = `<div class="muted">선수를 선택하세요.</div>`;
+  } else {
+    const rows = [];
+    names.filter(n=>n!==chosen).forEach(opp=>{
+      const k = [chosen,opp].sort((x,y)=>x.localeCompare(y,"ko")).join("|");
+      const rec = h2h[k];
+      if(!rec) return;
+      // rec.wins은 k의 앞쪽 이름 기준. 내가 앞쪽이면 wins, 뒤쪽이면 losses
+      const iFirst = chosen.localeCompare(opp,"ko")<0;
+      const myWins = iFirst ? rec.wins : rec.losses;
+      const myLosses = iFirst ? rec.losses : rec.wins;
+      if(myWins+myLosses===0) return;
+      rows.push({opp, wins:myWins, losses:myLosses, games:rec.games});
+    });
+    rows.sort((a,b)=>b.games-a.games);
+    if(rows.length===0){
+      h2hBox.innerHTML = `<div class="muted">${escapeHtml(chosen)} 선수의 상대전적 없음.</div>`;
+    } else {
+      h2hBox.innerHTML = `<div class="muted" style="margin-bottom:6px"><b>${escapeHtml(chosen)}</b> 의 상대전적</div>
+        <table class="stats-table"><thead><tr><th>상대</th><th>대결</th><th>승</th><th>패</th><th>승률</th></tr></thead><tbody>
+        ${rows.map(r=>{
+          const wr = r.games?+(r.wins/r.games*100).toFixed(1):0;
+          const lead = r.wins>r.losses ? "style=\"background:#dcfce7\"" : r.wins<r.losses ? "style=\"background:#fee2e2\"" : "";
+          return `<tr ${lead}><td style="text-align:left;padding-left:8px">${escapeHtml(r.opp)}</td><td>${r.games}</td><td>${r.wins}</td><td>${r.losses}</td><td>${wr}%</td></tr>`;
+        }).join("")}
+      </tbody></table>`;
+    }
+  }
+}
+
+/* ============ Kakao / Web Share ============ */
+const KAKAO_KEY = "ssob_kakao_key_v1";
+function saveKakaoKey(){
+  const v = document.getElementById("kakaoKey").value.trim();
+  localStorage.setItem(KAKAO_KEY, v);
+  if(v && window.Kakao && !Kakao.isInitialized()){
+    try{ Kakao.init(v); }catch(e){}
+  }
+}
+function loadKakaoKey(){
+  const v = localStorage.getItem(KAKAO_KEY) || "";
+  const el = document.getElementById("kakaoKey");
+  if(el) el.value = v;
+  return v;
+}
+function ensureKakaoSdk(){
+  return new Promise((resolve,reject)=>{
+    if(window.Kakao) return resolve(window.Kakao);
+    const s = document.createElement("script");
+    s.src = "https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js";
+    s.onload = ()=>resolve(window.Kakao);
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+async function shareToApps(nodeId){
+  const node = document.getElementById(nodeId);
+  if(!node){ alert("공유할 내용 없음"); return; }
+  try{
+    const canvas = await html2canvas(node,{backgroundColor:"#ffffff",scale:2});
+    canvas.toBlob(async (blob)=>{
+      const file = new File([blob], `ssob_${nodeId}_${state.date}.png`, {type:"image/png"});
+      // 1순위: Web Share API with files
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        try{
+          await navigator.share({
+            files:[file],
+            title:`${state.name||"S.S.O.B"} ${state.date}`,
+            text:`${state.name||"S.S.O.B"} 대진표/결과 (${state.date})`
+          });
+          return;
+        }catch(e){ if(e.name!=="AbortError") console.warn(e); }
+      }
+      // 2순위: 카카오 SDK (이미지는 URL 필요 → 업로드 이슈)
+      // 3순위: 파일 다운로드 fallback
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = file.name; a.click();
+      setTimeout(()=>URL.revokeObjectURL(url), 1000);
+      alert("시스템 공유가 지원되지 않아 이미지를 다운로드했습니다.\n갤러리에서 카톡으로 공유하세요.");
+    },"image/png");
+  }catch(err){
+    alert("공유 생성 실패: "+err.message);
+  }
+}
+
+/* ============ Supabase 동기화 ============ */
+const SUPA_KEY = "ssob_supa_settings_v1";
+let supaClient = null;
+let supaChannel = null;
+
+function saveSupaSettings(){
+  const url = document.getElementById("supaUrl").value.trim();
+  const key = document.getElementById("supaKey").value.trim();
+  localStorage.setItem(SUPA_KEY, JSON.stringify({url,key}));
+  supaClient = null; // 재연결 필요
+}
+function loadSupaSettings(){
+  try{
+    const s = JSON.parse(localStorage.getItem(SUPA_KEY)||"{}");
+    const u = document.getElementById("supaUrl");
+    const k = document.getElementById("supaKey");
+    if(u) u.value = s.url || "";
+    if(k) k.value = s.key || "";
+    return s;
+  }catch(e){ return {}; }
+}
+function supaLog(msg){
+  const box = document.getElementById("supaSyncLog");
+  if(!box) return;
+  const ts = new Date().toLocaleTimeString();
+  box.innerHTML = `[${ts}] ${escapeHtml(msg)}<br>` + box.innerHTML;
+}
+async function supaConnect(){
+  const s = JSON.parse(localStorage.getItem(SUPA_KEY)||"{}");
+  if(!s.url || !s.key){ alert("URL과 키 먼저 입력"); return null; }
+  if(!window.supabase){ alert("Supabase SDK 로드 실패"); return null; }
+  try{
+    supaClient = window.supabase.createClient(s.url, s.key, {
+      realtime:{params:{eventsPerSecond:5}}
+    });
+    const {error} = await supaClient.from("ssob_meets").select("id").limit(1);
+    if(error) throw error;
+    document.getElementById("supaStatus").textContent = "✓ 연결됨";
+    document.getElementById("supaStatus").style.color = "var(--win)";
+    supaLog("Supabase 연결 성공");
+    return supaClient;
+  }catch(err){
+    document.getElementById("supaStatus").textContent = "✗ 실패";
+    document.getElementById("supaStatus").style.color = "var(--lose)";
+    supaLog("연결 실패: "+err.message);
+    alert("연결 실패:\n"+err.message+"\n\n테이블 생성 SQL을 실행했는지 확인하세요.");
+    return null;
+  }
+}
+async function supaPushAll(){
+  const client = supaClient || await supaConnect();
+  if(!client) return;
+  if(!confirm("내 기기의 모든 대회·회원 데이터로 클라우드를 덮어씁니다. 계속?")) return;
+  const meets = getMeets();
+  const members = getMembers();
+  try{
+    let cnt = 0;
+    for(const [id, data] of Object.entries(meets)){
+      const {error} = await client.from("ssob_meets").upsert({id, data, updated_at: new Date().toISOString()});
+      if(error) throw error;
+      cnt++;
+    }
+    supaLog(`대회 ${cnt}건 업로드`);
+    let mCnt = 0;
+    for(const [id, data] of Object.entries(members)){
+      const {error} = await client.from("ssob_members").upsert({id, data, updated_at: new Date().toISOString()});
+      if(error) throw error;
+      mCnt++;
+    }
+    supaLog(`회원 ${mCnt}명 업로드`);
+    alert(`✓ 업로드 완료\n대회 ${cnt}건 · 회원 ${mCnt}명`);
+  }catch(err){ alert("업로드 실패: "+err.message); }
+}
+async function supaPushCurrent(){
+  const client = supaClient || await supaConnect();
+  if(!client) return;
+  syncStateFromInputs();
+  const id = meetKey(state);
+  try{
+    const {error} = await client.from("ssob_meets").upsert({id, data: state, updated_at: new Date().toISOString()});
+    if(error) throw error;
+    supaLog(`현재 대회 업로드: ${id}`);
+    alert(`✓ 업로드 완료: ${id}`);
+  }catch(err){ alert("업로드 실패: "+err.message); }
+}
+async function supaPullAll(){
+  const client = supaClient || await supaConnect();
+  if(!client) return;
+  if(!confirm("클라우드 데이터로 내 기기를 덮어씁니다. 계속?")) return;
+  try{
+    const {data: meetRows, error: e1} = await client.from("ssob_meets").select("id,data");
+    if(e1) throw e1;
+    const meets = {};
+    meetRows.forEach(r=>meets[r.id] = r.data);
+    setMeets(meets);
+    supaLog(`대회 ${meetRows.length}건 다운로드`);
+
+    const {data: memRows, error: e2} = await client.from("ssob_members").select("id,data");
+    if(e2) throw e2;
+    const members = {};
+    memRows.forEach(r=>members[r.id] = r.data);
+    setMembers(members);
+    supaLog(`회원 ${memRows.length}명 다운로드`);
+
+    alert(`✓ 다운로드 완료\n대회 ${meetRows.length}건 · 회원 ${memRows.length}명`);
+    renderAll();
+    if(document.querySelector('[data-tab=members].active')) renderMembers();
+  }catch(err){ alert("다운로드 실패: "+err.message); }
+}
+async function toggleAutoSync(){
+  const on = document.getElementById("supaAutoSync").checked;
+  if(!on){
+    if(supaChannel){ supaClient.removeChannel(supaChannel); supaChannel = null; supaLog("자동 동기화 중지"); }
+    return;
+  }
+  const client = supaClient || await supaConnect();
+  if(!client){ document.getElementById("supaAutoSync").checked = false; return; }
+  supaChannel = client.channel("ssob-sync")
+    .on("postgres_changes", {event:"*", schema:"public", table:"ssob_meets"}, payload=>{
+      const row = payload.new || payload.old;
+      if(!row) return;
+      const meets = getMeets();
+      if(payload.eventType === "DELETE"){ delete meets[row.id]; }
+      else { meets[row.id] = row.data; }
+      setMeets(meets);
+      supaLog(`🔄 대회 ${row.id} ${payload.eventType}`);
+      if(document.querySelector('[data-tab=history].active')) renderMeetList();
+    })
+    .on("postgres_changes", {event:"*", schema:"public", table:"ssob_members"}, payload=>{
+      const row = payload.new || payload.old;
+      if(!row) return;
+      const members = getMembers();
+      if(payload.eventType === "DELETE"){ delete members[row.id]; }
+      else { members[row.id] = row.data; }
+      setMembers(members);
+      supaLog(`🔄 회원 ${row.id} ${payload.eventType}`);
+      if(document.querySelector('[data-tab=members].active')) renderMembers();
+    })
+    .subscribe((status)=>{
+      supaLog("Realtime: "+status);
+    });
+}
+
 /* ============ 초기 렌더 ============ */
 function renderAll(){
   document.getElementById("headerDate").textContent = state.date || "";
@@ -3151,6 +3745,9 @@ document.getElementById("meetName").addEventListener("change",e=>{state.name=e.t
 load();
 renderAll();
 loadAiSettings();
+loadKakaoKey();
+loadSupaSettings();
+renderCloneList();
 
 /* 서비스워커 등록 (PWA) */
 if ("serviceWorker" in navigator) {
