@@ -120,12 +120,13 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.4</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.5</span>
 </header>
 
 <nav class="tabs">
   <button data-tab="setup" class="active">대회설정</button>
   <button data-tab="members">👥 회원</button>
+  <button data-tab="ai">🤖 AI 인식</button>
   <button data-tab="games">📋 대진표</button>
   <button data-tab="results">📝 결과</button>
   <button data-tab="rank">순위</button>
@@ -378,7 +379,75 @@
     </div>
   </section>
 
-  <!-- 이미지 OCR -->
+  <!-- AI 인식 전용 탭 -->
+  <section id="tab-ai" class="hidden">
+    <div class="card">
+      <h2>🤖 AI 이미지 인식</h2>
+      <div class="muted" style="margin-bottom:8px;font-size:12px">
+        대진표/결과 이미지를 업로드하면 AI가 이름·점수를 자동 추출합니다.<br>
+        추출 전 대회설정 탭에서 API 키 등록 필요.
+      </div>
+
+      <div style="padding:10px;background:#f9fafb;border-radius:6px;margin-bottom:10px">
+        <h3 style="margin:0 0 6px 0;font-size:13px">① 인식 모드</h3>
+        <div class="row">
+          <label><input type="radio" name="aiMode" value="bracket" checked onchange="aiTabSetMode('bracket')"/> 📋 대진표 (경기 전, 이름 추출)</label>
+        </div>
+        <div class="row">
+          <label><input type="radio" name="aiMode" value="results" onchange="aiTabSetMode('results')"/> ✍️ 결과 (손글씨 점수 포함)</label>
+        </div>
+      </div>
+
+      <div style="padding:10px;background:#f9fafb;border-radius:6px;margin-bottom:10px">
+        <h3 style="margin:0 0 6px 0;font-size:13px">② 이미지 선택</h3>
+        <div class="row">
+          <input type="file" id="aiTabFile" accept="image/*" onchange="aiTabOnFile(event)" style="flex:1;font-size:12px"/>
+          <button class="btn sec small" onclick="aiTabRotate()" id="aiTabRotBtn" disabled>↻ 회전</button>
+        </div>
+        <div id="aiTabImgInfo" class="muted" style="margin-top:4px;font-size:11px"></div>
+        <div style="margin-top:8px;overflow:auto;max-height:300px;text-align:center;background:#fff;border:1px solid var(--line);border-radius:6px;min-height:40px">
+          <canvas id="aiTabCanvas" style="max-width:100%;display:none"></canvas>
+        </div>
+      </div>
+
+      <div style="padding:10px;background:#f9fafb;border-radius:6px;margin-bottom:10px">
+        <h3 style="margin:0 0 6px 0;font-size:13px">③ AI 인식 실행</h3>
+        <div class="row">
+          <button class="btn" id="aiTabRunBtn" onclick="aiTabRun()" disabled style="flex:1;font-size:15px;padding:12px">🤖 AI 인식 시작</button>
+        </div>
+        <div id="aiTabProgress" class="hidden" style="margin-top:8px">
+          <div style="background:#e5e7eb;height:6px;border-radius:3px;overflow:hidden">
+            <div id="aiTabBar" style="background:var(--accent);height:100%;width:0;transition:width .3s"></div>
+          </div>
+          <div class="muted" id="aiTabPhase" style="margin-top:4px;font-size:12px"></div>
+        </div>
+      </div>
+
+      <div class="card hidden" id="aiTabReviewCard" style="padding:10px">
+        <h3 style="margin:0 0 8px 0;font-size:14px">④ 인식 결과 검토</h3>
+        <div class="muted" style="font-size:11px;margin-bottom:6px">
+          🟢 정확매칭 · 🟠 유사매칭(자동교정) · 🔴 매칭 실패(수정 또는 그대로 적용)
+        </div>
+        <div id="aiTabRosterPreview"></div>
+        <div style="overflow-x:auto">
+          <table class="games-table"><thead id="aiTabReviewHead"></thead><tbody id="aiTabReviewBody"></tbody></table>
+        </div>
+        <div class="row" style="margin-top:10px;justify-content:space-between">
+          <label style="font-size:12px"><input type="checkbox" id="aiTabAutoReg" checked /> 미등록 이름 자동 회원 등록</label>
+          <div>
+            <button class="btn sec small" onclick="aiTabCancel()">취소</button>
+            <button class="btn" onclick="aiTabApply()">✓ 적용</button>
+          </div>
+        </div>
+        <details style="margin-top:10px">
+          <summary class="muted" style="font-size:11px">🔍 원시 AI 응답 (디버그)</summary>
+          <pre id="aiTabRawText" style="font-size:10px;background:#f3f4f6;padding:6px;border-radius:4px;overflow:auto;max-height:180px;white-space:pre-wrap"></pre>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- 이미지 OCR (레거시 - 숨김) -->
   <section id="tab-ocr" class="hidden">
     <div class="card">
       <h2>📷 대진표 이미지 인식</h2>
@@ -535,13 +604,10 @@
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
         <h2 style="margin:0">📋 대진표 입력</h2>
-        <div class="row">
-          <input type="file" id="bracketOcrFile" accept="image/*" onchange="onOcrFile(event,'bracket')" style="font-size:11px;max-width:180px"/>
-          <button class="btn" onclick="runAiOcr('bracket')" id="bracketAiBtn" disabled>🤖 AI 대진표 인식</button>
-        </div>
+        <button class="btn sec small" onclick="switchTab('ai');aiTabSetMode('bracket')">🤖 AI로 불러오기</button>
       </div>
       <div class="muted" style="margin:4px 0 10px 0;font-size:12px">
-        인쇄된 깨끗한 대진표(이름/팀만) 이미지 → 자동 입력
+        수동 입력 또는 🤖 AI 인식 탭에서 이미지로 불러오기
       </div>
       <div class="muted" style="margin-bottom:6px">
         이름은 등록된 참가자에서 자동완성 (텍스트 입력). 25점 기준, 점수 입력시 승패 자동 판정.
@@ -577,13 +643,10 @@
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
         <h2 style="margin:0">📝 결과 입력</h2>
-        <div class="row">
-          <input type="file" id="resultsOcrFile" accept="image/*" onchange="onOcrFile(event,'results')" style="font-size:11px;max-width:180px"/>
-          <button class="btn" onclick="runAiOcr('results')" id="resultsAiBtn" disabled>✍️ AI 결과 인식 (수기)</button>
-        </div>
+        <button class="btn sec small" onclick="switchTab('ai');aiTabSetMode('results')">✍️ AI로 불러오기 (수기)</button>
       </div>
       <div class="muted" style="margin:4px 0 10px 0;font-size:12px">
-        A4 출력 대진표에 손으로 기입한 점수/콕/남여·혼/찬조금 이미지 → 숫자 자동 추출
+        수동 입력 또는 🤖 AI 인식 탭에서 수기 결과 이미지로 불러오기
       </div>
       <div style="overflow-x:auto">
         <table class="games-table bracket-table" id="resultsTable">
@@ -3449,6 +3512,331 @@ function ocrApply(){
   const card = document.getElementById("ocrResultCard");
   if(card) card.classList.add("hidden");
   ocrParsedRows = []; ocrRoster = [];
+}
+
+/* ============ AI 인식 전용 탭 ============ */
+let aiTabImage = null;
+let aiTabRotation = 0;
+let aiTabMode = "bracket";
+let aiTabRows = [];
+let aiTabRoster = [];
+
+function aiTabSetMode(mode){
+  aiTabMode = mode;
+  const radios = document.querySelectorAll('input[name="aiMode"]');
+  radios.forEach(r=>r.checked = (r.value===mode));
+}
+
+function aiTabOnFile(e){
+  const f = e.target.files[0];
+  if(!f){ return; }
+  const info = document.getElementById("aiTabImgInfo");
+  info.textContent = `⏳ 로딩 중... ${f.name} (${(f.size/1024).toFixed(0)}KB, ${f.type})`;
+
+  if(f.type && !/image\/(jpeg|jpg|png|gif|webp|bmp)/i.test(f.type)){
+    info.innerHTML = `<span style="color:var(--warn)">⚠ 지원 안 되는 형식: ${escapeHtml(f.type)}</span>`;
+  }
+
+  const url = URL.createObjectURL(f);
+  const img = new Image();
+  img.onload = ()=>{
+    aiTabImage = img;
+    aiTabRotation = 0;
+    aiTabDrawCanvas();
+    document.getElementById("aiTabRunBtn").disabled = false;
+    document.getElementById("aiTabRotBtn").disabled = false;
+    info.innerHTML = `<span style="color:var(--win)">✓ 이미지 준비됨: ${img.naturalWidth}×${img.naturalHeight} (${(f.size/1024).toFixed(0)}KB)</span>`;
+  };
+  img.onerror = ()=>{
+    info.innerHTML = `<span style="color:var(--lose)">❌ 이미지 로드 실패. JPG/PNG로 변환 후 재시도</span>`;
+  };
+  img.src = url;
+}
+
+function aiTabRotate(){
+  if(!aiTabImage) return;
+  aiTabRotation = (aiTabRotation+90)%360;
+  aiTabDrawCanvas();
+}
+
+function aiTabDrawCanvas(){
+  const c = document.getElementById("aiTabCanvas");
+  if(!aiTabImage) return;
+  const w = aiTabImage.naturalWidth, h = aiTabImage.naturalHeight;
+  const rot = aiTabRotation;
+  if(rot===90||rot===270){ c.width=h; c.height=w; } else { c.width=w; c.height=h; }
+  const ctx = c.getContext("2d");
+  ctx.save();
+  ctx.translate(c.width/2, c.height/2);
+  ctx.rotate(rot*Math.PI/180);
+  ctx.drawImage(aiTabImage, -w/2, -h/2);
+  ctx.restore();
+  c.style.display = "block";
+}
+
+function aiTabCanvasToBase64(maxSide=1600, quality=0.85){
+  const src = document.getElementById("aiTabCanvas");
+  const scale = Math.min(1, maxSide/Math.max(src.width,src.height));
+  if(scale>=1){
+    return src.toDataURL("image/jpeg", quality).split(",")[1];
+  }
+  const tmp = document.createElement("canvas");
+  tmp.width = Math.round(src.width*scale);
+  tmp.height = Math.round(src.height*scale);
+  tmp.getContext("2d").drawImage(src,0,0,tmp.width,tmp.height);
+  return tmp.toDataURL("image/jpeg", quality).split(",")[1];
+}
+
+async function aiTabRun(){
+  if(!aiTabImage){ alert("이미지를 먼저 선택하세요"); return; }
+  const s = getAiSettings();
+  if(!s.key){
+    alert("대회설정 탭 → 🤖 AI 비전 설정에서 API 키를 먼저 등록하세요.\n(무료: Gemini 추천 — https://aistudio.google.com/apikey)");
+    switchTab("setup");
+    return;
+  }
+  const btn = document.getElementById("aiTabRunBtn");
+  const bar = document.getElementById("aiTabBar");
+  const phase = document.getElementById("aiTabPhase");
+  document.getElementById("aiTabProgress").classList.remove("hidden");
+  btn.disabled = true;
+  const origText = btn.textContent;
+  btn.textContent = "🔄 인식 중...";
+  bar.style.width = "10%";
+  phase.textContent = `이미지 변환 중... (${aiTabMode==="results"?"결과(수기)":"대진표"} 모드)`;
+
+  try{
+    const b64 = aiTabCanvasToBase64();
+    bar.style.width = "30%";
+    phase.textContent = `${s.provider} ${s.model} 호출 중... (2~6초)`;
+    const prompt = aiTabMode==="results" ? AI_PROMPT_RESULTS : AI_PROMPT_BRACKET;
+    let json;
+    if(s.provider==="gemini") json = await callGeminiVision(s,b64,prompt);
+    else if(s.provider==="claude") json = await callClaudeVision(s,b64,prompt);
+    else json = await callOpenAIVision(s,b64,prompt);
+    bar.style.width = "80%";
+    phase.textContent = "응답 파싱 중...";
+    saveAiLog({phase:`AI탭 ${aiTabMode}`, provider:s.provider, model:s.model, parsed:json});
+
+    document.getElementById("aiTabRawText").textContent = JSON.stringify(json,null,2);
+
+    if(!json.games || !Array.isArray(json.games)){
+      throw new Error(`응답에 games 배열이 없습니다.\n응답: ${JSON.stringify(json).slice(0,200)}`);
+    }
+    if(json.games.length===0){
+      throw new Error("AI가 표를 인식하지 못했습니다.\n- 이미지 흐림/작음\n- 회전 필요\n- 표 일부만 프레임에 들어감");
+    }
+
+    aiTabRows = json.games.map(g=>({
+      gameNo: g.gameNo || 0,
+      t1a: (g.team1&&g.team1[0])||"",
+      t1b: (g.team1&&g.team1[1])||"",
+      t2a: (g.team2&&g.team2[0])||"",
+      t2b: (g.team2&&g.team2[1])||"",
+      s1: g.s1||"",
+      s2: g.s2||""
+    })).filter(r=>r.gameNo>0).sort((a,b)=>a.gameNo-b.gameNo);
+
+    if(aiTabRows.length===0){
+      throw new Error(`게임번호가 있는 행이 없습니다. 원시 응답을 확인하세요.`);
+    }
+
+    if(Array.isArray(json.roster)){
+      aiTabRoster = json.roster.map(r=>{
+        if(typeof r==="string") return {name:r,cock:"",mf:"",mx:"",donation:""};
+        return {
+          name: r.name||"",
+          cock: r.cock!=null?String(r.cock):"",
+          mf: r.mf!=null?String(r.mf):"",
+          mx: r.mx!=null?String(r.mx):"",
+          donation: r.donation!=null?String(r.donation):""
+        };
+      }).filter(r=>/^[\uAC00-\uD7A3]{2,5}$/.test(r.name));
+    } else aiTabRoster = [];
+
+    bar.style.width = "100%";
+    phase.textContent = `✓ ${aiTabRows.length}개 게임 · ${aiTabRoster.length}명 인식 완료`;
+    aiTabRenderReview();
+    document.getElementById("aiTabReviewCard").classList.remove("hidden");
+    document.getElementById("aiTabReviewCard").scrollIntoView({behavior:"smooth",block:"start"});
+  }catch(err){
+    console.error("AI 탭 오류:", err);
+    saveAiLog({phase:`AI탭 ${aiTabMode} 실패`, error:err.message});
+    phase.innerHTML = `<span style="color:var(--lose)">❌ ${escapeHtml(err.message)}</span>`;
+    alert(`AI 인식 실패:\n${err.message}\n\n대회설정 → 📋 마지막 AI 응답 보기 에서 상세 확인`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+}
+
+function aiTabRenderReview(){
+  const head = document.getElementById("aiTabReviewHead");
+  const body = document.getElementById("aiTabReviewBody");
+  head.innerHTML = aiTabMode==="results"
+    ? `<tr><th style="width:30px">#</th><th colspan="2">팀1</th><th>점1</th><th colspan="2">팀2</th><th>점2</th></tr>`
+    : `<tr><th style="width:30px">#</th><th colspan="2">팀1</th><th colspan="2">팀2</th></tr>`;
+
+  // 출전자 미리보기
+  const rosterBox = document.getElementById("aiTabRosterPreview");
+  if(aiTabRoster.length>0){
+    rosterBox.innerHTML = `<div style="padding:6px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;margin-bottom:8px">
+      <b style="font-size:13px">📋 추출된 출전자 (${aiTabRoster.length}명):</b>
+      <div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">
+        ${aiTabRoster.map((r,i)=>{
+          const extra = [r.cock?`콕${r.cock}`:"",r.mf?`남여${r.mf}`:"",r.mx?`혼${r.mx}`:"",r.donation?`찬조${r.donation}`:""].filter(Boolean).join("·");
+          return `<span class="chip" style="font-size:11px">${escapeHtml(r.name)}${extra?` <span class="muted" style="font-size:10px">(${escapeHtml(extra)})</span>`:""} <button onclick="aiTabRemoveRoster(${i})" style="background:transparent;border:0;cursor:pointer;color:var(--lose)">✕</button></span>`;
+        }).join("")}
+      </div>
+    </div>`;
+  } else {
+    rosterBox.innerHTML = `<div class="muted" style="font-size:11px;margin-bottom:8px">출전자 명단 추출 없음 — 게임내 이름에서 자동 추론</div>`;
+  }
+
+  const matchPlayer = (ocrName)=>{
+    if(!ocrName) return {name:"",status:"empty"};
+    const exact = state.players.find(p=>p.name===ocrName);
+    if(exact) return {name:exact.name,status:"exact"};
+    const members = Object.values(getMembers());
+    const exactMem = members.find(m=>m.name===ocrName);
+    if(exactMem) return {name:exactMem.name,status:"exact"};
+    let best=null, bestD=99;
+    [...state.players, ...members].forEach(p=>{
+      const d = lev(ocrName, p.name);
+      if(d<bestD){bestD=d; best=p;}
+    });
+    if(best && bestD<=1) return {name:best.name, status:"fuzzy"};
+    if(best && bestD<=2 && ocrName.length>=3) return {name:best.name, status:"fuzzy"};
+    return {name:ocrName, status:"nomatch"};
+  };
+
+  body.innerHTML = "";
+  aiTabRows.forEach((r,i)=>{
+    const makeNameCell = (k)=>{
+      const orig = r[k]||"";
+      const m = matchPlayer(orig);
+      r["_"+k] = m;
+      const color = m.status==="exact"?"#dcfce7":m.status==="fuzzy"?"#fef3c7":m.status==="nomatch"?"#fee2e2":"#fff";
+      return `<td style="background:${color}">
+        <input type="text" value="${escapeAttr(m.name)}" onchange="aiTabSetField(${i},'${k}',this.value)" style="width:100%;border:0;padding:6px 4px;font-size:12px;background:transparent">
+        ${orig && orig!==m.name?`<div class="muted" style="font-size:10px">원: ${escapeHtml(orig)}</div>`:""}
+      </td>`;
+    };
+    const scoreCell = (k)=>{
+      return `<td><input type="text" inputmode="numeric" value="${escapeAttr(r[k]||"")}" onchange="aiTabSetField(${i},'${k}',this.value)" style="width:100%;border:0;padding:6px 4px;font-size:13px;font-weight:700;text-align:center"></td>`;
+    };
+    const tr = document.createElement("tr");
+    if(aiTabMode==="results"){
+      tr.innerHTML = `<td class="game-no">${r.gameNo}</td>${makeNameCell("t1a")}${makeNameCell("t1b")}${scoreCell("s1")}${makeNameCell("t2a")}${makeNameCell("t2b")}${scoreCell("s2")}`;
+    } else {
+      tr.innerHTML = `<td class="game-no">${r.gameNo}</td>${makeNameCell("t1a")}${makeNameCell("t1b")}${makeNameCell("t2a")}${makeNameCell("t2b")}`;
+    }
+    body.appendChild(tr);
+  });
+}
+
+function aiTabSetField(i,key,val){
+  aiTabRows[i][key] = val;
+  if(["t1a","t1b","t2a","t2b"].includes(key)) aiTabRenderReview();
+}
+function aiTabRemoveRoster(i){
+  aiTabRoster.splice(i,1);
+  aiTabRenderReview();
+}
+function aiTabCancel(){
+  document.getElementById("aiTabReviewCard").classList.add("hidden");
+  aiTabRows = [];
+  aiTabRoster = [];
+}
+function aiTabApply(){
+  const autoReg = document.getElementById("aiTabAutoReg").checked;
+  const members = getMembers();
+  const memberByName = {};
+  Object.values(members).forEach(m=>{memberByName[m.name]=m});
+
+  const maxG = Math.max(...aiTabRows.map(r=>r.gameNo||0), state.games.length);
+  while(state.games.length<maxG) state.games.push(blankGame());
+
+  if(aiTabMode==="results"){
+    // 점수 덮어쓰기 + 팀 이름 보완
+    aiTabRows.forEach(r=>{
+      const idx = r.gameNo-1;
+      if(idx<0||idx>=state.games.length) return;
+      const g = state.games[idx];
+      if(r.s1!==""&&r.s1!=null) g.s1 = String(r.s1);
+      if(r.s2!==""&&r.s2!=null) g.s2 = String(r.s2);
+      if(!g.t1a && r.t1a) g.t1a = r.t1a;
+      if(!g.t1b && r.t1b) g.t1b = r.t1b;
+      if(!g.t2a && r.t2a) g.t2a = r.t2a;
+      if(!g.t2b && r.t2b) g.t2b = r.t2b;
+    });
+    if(aiTabRoster.length>0){
+      aiTabRoster.forEach((r,i)=>{
+        let slot = state.players.findIndex(p=>p.name===r.name);
+        if(slot<0) slot = i;
+        if(slot>=0 && slot<state.players.length){
+          const p = state.players[slot];
+          if(r.cock) p.cock = String(r.cock);
+          if(r.mf) p.mf = String(r.mf);
+          if(r.mx) p.mx = String(r.mx);
+          if(r.donation) p.donation = String(r.donation);
+        }
+      });
+    }
+  } else {
+    // 대진표 모드
+    let rosterItems = aiTabRoster.length>0 ? aiTabRoster : [];
+    if(rosterItems.length===0){
+      const seen = new Set();
+      aiTabRows.forEach(r=>{
+        ["t1a","t1b","t2a","t2b"].forEach(k=>{
+          const v = r[k];
+          if(v && /^[\uAC00-\uD7A3]{2,5}$/.test(v) && !seen.has(v)){
+            seen.add(v);
+            rosterItems.push({name:v});
+          }
+        });
+      });
+    }
+    const prevByName = {};
+    state.players.forEach(p=>{prevByName[p.name]=p});
+    state.players = rosterItems.map(r=>{
+      const prev = prevByName[r.name] || {};
+      const m = memberByName[r.name];
+      return {
+        name: r.name,
+        isGuest: m?m.isGuest:(prev.isGuest||false),
+        cock: prev.cock||"", mf: prev.mf||"", mx: prev.mx||"", donation: prev.donation||""
+      };
+    });
+    aiTabRows.forEach(r=>{
+      const idx = r.gameNo-1;
+      if(idx<0||idx>=state.games.length) return;
+      const g = state.games[idx];
+      g.t1a=r.t1a||""; g.t1b=r.t1b||""; g.t2a=r.t2a||""; g.t2b=r.t2b||"";
+    });
+    if(autoReg){
+      const today = new Date().toISOString().slice(0,10);
+      const toAdd = new Set();
+      rosterItems.forEach(r=>{ if(!memberByName[r.name]) toAdd.add(r.name); });
+      aiTabRows.forEach(r=>{
+        ["t1a","t1b","t2a","t2b"].forEach(k=>{
+          const v = r[k];
+          if(v && /^[\uAC00-\uD7A3]{2,5}$/.test(v) && !memberByName[v]) toAdd.add(v);
+        });
+      });
+      toAdd.forEach(n=>{
+        const id = genId();
+        members[id] = {id,name:n,gender:"M",isGuest:false,phone:"",note:"AI 자동등록",joinDate:today,active:true};
+      });
+      if(toAdd.size>0) setMembers(members);
+    }
+  }
+  persist(); renderAll();
+  document.getElementById("aiTabReviewCard").classList.add("hidden");
+  switchTab(aiTabMode==="results"?"results":"games");
+  alert(`✓ 적용 완료: ${aiTabRows.length}게임`);
+  aiTabRows = []; aiTabRoster = [];
 }
 
 /* ============ 대회 복제 ============ */
