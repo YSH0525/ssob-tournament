@@ -120,7 +120,7 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.16</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.17</span>
 </header>
 
 <nav class="tabs">
@@ -4373,11 +4373,66 @@ document.getElementById("meetDate").addEventListener("change",e=>{state.date=e.t
 document.getElementById("meetName").addEventListener("change",e=>{state.name=e.target.value; persist();});
 
 load();
+runMigrations();
 renderAll();
 loadAiSettings();
 loadKakaoKey();
 loadSupaSettings();
 renderCloneList();
+
+/* localStorage 데이터 마이그레이션 (1회성 수정사항 반영) */
+function runMigrations(){
+  const MIG_KEY = "ssob_migrations_v1";
+  const done = JSON.parse(localStorage.getItem(MIG_KEY)||"[]");
+
+  // 마이그레이션 #1: 이정화(여) → 이창화(남)
+  if(!done.includes("rename_이정화_이창화")){
+    let touched = false;
+    // 회원 DB
+    const members = getMembers();
+    Object.values(members).forEach(m=>{
+      if(m.name==="이정화"){
+        m.name = "이창화";
+        m.gender = "M";
+        touched = true;
+      }
+    });
+    if(touched) setMembers(members);
+
+    // 저장된 모든 대회의 게임/명단
+    const meets = getMeets();
+    let meetsTouched = false;
+    Object.values(meets).forEach(mt=>{
+      (mt.players||[]).forEach(p=>{
+        if(p.name==="이정화"){ p.name = "이창화"; meetsTouched = true; }
+      });
+      (mt.games||[]).forEach(g=>{
+        ["t1a","t1b","t2a","t2b"].forEach(k=>{
+          if(g[k]==="이정화"){ g[k] = "이창화"; meetsTouched = true; }
+        });
+      });
+    });
+    if(meetsTouched) setMeets(meets);
+
+    // 현재 편집 중인 대회
+    let stateTouched = false;
+    (state.players||[]).forEach(p=>{
+      if(p.name==="이정화"){ p.name = "이창화"; stateTouched = true; }
+    });
+    (state.games||[]).forEach(g=>{
+      ["t1a","t1b","t2a","t2b"].forEach(k=>{
+        if(g[k]==="이정화"){ g[k] = "이창화"; stateTouched = true; }
+      });
+    });
+    if(stateTouched){ persist(); }
+
+    if(touched || meetsTouched || stateTouched){
+      console.log("✓ 마이그레이션: 이정화 → 이창화 적용");
+    }
+    done.push("rename_이정화_이창화");
+    localStorage.setItem(MIG_KEY, JSON.stringify(done));
+  }
+}
 
 /* 서비스워커 등록 (PWA) */
 if ("serviceWorker" in navigator) {
