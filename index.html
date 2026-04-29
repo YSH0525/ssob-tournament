@@ -120,15 +120,15 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.5</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.6</span>
 </header>
 
 <nav class="tabs">
-  <button data-tab="setup" class="active">대회설정</button>
-  <button data-tab="members">👥 회원</button>
-  <button data-tab="ai">🤖 AI 인식</button>
+  <button data-tab="members" class="active">👥 회원</button>
+  <button data-tab="setup">대회설정</button>
   <button data-tab="games">📋 대진표</button>
   <button data-tab="results">📝 결과</button>
+  <button data-tab="ai">🤖 AI 인식</button>
   <button data-tab="rank">순위</button>
   <button data-tab="player">개인기록</button>
   <button data-tab="advanced">📊 심화통계</button>
@@ -139,7 +139,7 @@
 
 <main>
   <!-- 대회 설정 -->
-  <section id="tab-setup">
+  <section id="tab-setup" class="hidden">
     <div class="card">
       <h2>대회 정보</h2>
       <div class="row">
@@ -286,7 +286,7 @@
   </section>
 
   <!-- 회원 관리 -->
-  <section id="tab-members" class="hidden">
+  <section id="tab-members">
     <div class="card">
       <h2>👥 회원 등록</h2>
       <div class="row">
@@ -303,52 +303,19 @@
         <input type="text" id="mNewPhone" placeholder="연락처 (선택)" style="flex:1;min-width:120px" />
         <input type="text" id="mNewNote" placeholder="메모 (선택)" style="flex:1;min-width:120px" />
       </div>
-      <div class="row" style="margin-top:8px">
-        <button class="btn sec" onclick="openImportFromMeets()">📥 출전자 명단에서 가져오기</button>
-        <span class="muted">저장된 대회의 선수 중 미등록자 일괄추가</span>
-      </div>
-
-      <details style="margin-top:8px">
-        <summary class="muted">📋 일괄 등록 (여러 명)</summary>
-        <div class="muted" style="margin:6px 0">한 줄당 한 명. 형식: <code>이름,성별(M/F),회원여부(1=회원/0=비회원)</code><br>예: <code>김위영,M,1</code></div>
-        <textarea id="mBulkText" rows="4" style="width:100%;border:1px solid var(--line);border-radius:6px;padding:6px;font-family:inherit" placeholder="김위영,M,1&#10;윤상호,M,1&#10;배모니카,F,1"></textarea>
-        <button class="btn sec small" onclick="bulkAddMembers()" style="margin-top:6px">일괄 등록</button>
-      </details>
-    </div>
-
-    <div class="card hidden" id="importCard">
-      <div class="row" style="justify-content:space-between">
-        <h2 style="margin:0">📥 출전자 명단에서 회원 등록</h2>
-        <button class="btn sec small" onclick="closeImportFromMeets()">✕</button>
-      </div>
-      <div class="muted" style="margin:6px 0">
-        저장된 모든 대회 + 현재 편집 중인 대회에서 <b>아직 회원 등록 안 된 이름</b>만 표시됩니다.<br>
-        체크 + 성별/구분 선택 후 일괄 등록하세요.
-      </div>
-      <div class="row" style="margin-bottom:6px">
-        <button class="btn sec small" onclick="importAll(true)">전체선택</button>
-        <button class="btn sec small" onclick="importAll(false)">전체해제</button>
-        <button class="btn sec small" onclick="importSetAllGender('M')">전체 남</button>
-        <button class="btn sec small" onclick="importSetAllGender('F')">전체 여</button>
-      </div>
-      <div id="importBox" style="max-height:320px;overflow:auto"></div>
-      <div class="row" style="margin-top:10px">
-        <button class="btn" onclick="applyImport()" style="flex:1">✓ 선택한 이름 회원으로 등록</button>
-      </div>
     </div>
 
     <div class="card">
       <h2>회원 목록</h2>
-      <div class="row">
+      <div class="row" style="margin-bottom:8px">
         <input type="text" id="mSearch" placeholder="이름 검색" oninput="renderMembers()" style="flex:1;min-width:120px"/>
-        <select id="mFilter" onchange="renderMembers()">
-          <option value="active">활동회원만</option>
-          <option value="all">전체</option>
-          <option value="guest">비회원만</option>
-          <option value="inactive">휴회원</option>
-        </select>
       </div>
-      <div id="membersBox" style="margin-top:10px;overflow-x:auto"></div>
+      <div class="row" style="gap:0;margin-bottom:8px;border-bottom:1px solid var(--line)">
+        <button class="m-tab active" data-genderfilter="all" onclick="setGenderFilter('all')" style="flex:1;background:transparent;border:0;border-bottom:2px solid var(--accent);padding:8px;font-weight:700;color:var(--accent);cursor:pointer">전체</button>
+        <button class="m-tab" data-genderfilter="M" onclick="setGenderFilter('M')" style="flex:1;background:transparent;border:0;border-bottom:2px solid transparent;padding:8px;color:var(--sub);cursor:pointer">남자</button>
+        <button class="m-tab" data-genderfilter="F" onclick="setGenderFilter('F')" style="flex:1;background:transparent;border:0;border-bottom:2px solid transparent;padding:8px;color:var(--sub);cursor:pointer">여자</button>
+      </div>
+      <div id="membersBox" style="overflow-x:auto"></div>
     </div>
 
     <div class="card">
@@ -2376,41 +2343,54 @@ function editMemberName(id, newName){
   alert(`"${oldName}" → "${newName}" 변경 완료${cascade&&(gameHits+rosterHits)>0?` (기록 ${gameHits+rosterHits}건 포함)`:""}`);
 }
 
+let memberGenderFilter = "all"; // "all" | "M" | "F"
+
+function setGenderFilter(g){
+  memberGenderFilter = g;
+  document.querySelectorAll(".m-tab").forEach(b=>{
+    const active = b.dataset.genderfilter === g;
+    b.classList.toggle("active", active);
+    b.style.color = active ? "var(--accent)" : "var(--sub)";
+    b.style.borderBottomColor = active ? "var(--accent)" : "transparent";
+    b.style.fontWeight = active ? "700" : "400";
+  });
+  renderMembers();
+}
+
 function renderMembers(){
   const q = (document.getElementById("mSearch")?.value||"").toLowerCase();
-  const filter = document.getElementById("mFilter")?.value || "active";
   const members = Object.values(getMembers());
   const filtered = members.filter(m=>{
     if(q && !m.name.toLowerCase().includes(q)) return false;
-    if(filter==="active") return m.active!==false && !m.isGuest;
-    if(filter==="guest") return m.active!==false && m.isGuest;
-    if(filter==="inactive") return m.active===false;
+    if(memberGenderFilter==="M") return m.gender !== "F";
+    if(memberGenderFilter==="F") return m.gender === "F";
     return true;
   }).sort((a,b)=>a.name.localeCompare(b.name,"ko"));
 
   const box = document.getElementById("membersBox");
   if(!box) return;
-  if(filtered.length===0){ box.innerHTML = `<div class="muted">해당 회원 없음</div>`; return; }
+  if(filtered.length===0){ box.innerHTML = `<div class="muted" style="padding:10px">해당 회원 없음</div>`; return; }
   let h = `<table class="stats-table"><thead><tr>
-    <th>이름</th><th>성별</th><th>구분</th><th>연락처</th><th>상태</th><th>동작</th>
+    <th>이름</th><th>성별</th><th>구분</th><th>연락처</th><th>동작</th>
   </tr></thead><tbody>`;
   filtered.forEach(m=>{
-    h += `<tr ${m.active===false?'style="opacity:.5"':''}>
+    h += `<tr>
       <td style="text-align:left;padding-left:8px">
         <a href="#" onclick="openMemberDetail('${m.id}');return false" style="color:var(--accent)">${escapeHtml(m.name)}</a>
       </td>
       <td>${m.gender==="F"?"여":"남"}</td>
       <td>${m.isGuest?'<span class="tag g">비</span>':'<span class="tag m">회</span>'}</td>
       <td style="font-size:11px">${escapeHtml(m.phone||"")}</td>
-      <td>${m.active===false?'<span class="tag t">휴</span>':'<span class="tag w">활</span>'}</td>
       <td>
         <button class="btn sec small" onclick="toggleMemberGuest('${m.id}')" title="회/비 전환">↔</button>
-        <button class="btn sec small" onclick="toggleMemberActive('${m.id}')" title="활/휴 전환">⏸</button>
         <button class="btn danger small" onclick="deleteMember('${m.id}')">✕</button>
       </td></tr>`;
   });
+  const total = members.length;
+  const men = members.filter(m=>m.gender!=="F").length;
+  const women = members.filter(m=>m.gender==="F").length;
   h += `</tbody></table>
-    <div class="muted" style="margin-top:6px">총 ${members.length}명 (활동 ${members.filter(m=>m.active!==false).length})</div>`;
+    <div class="muted" style="margin-top:6px">전체 ${total}명 · 남 ${men} / 여 ${women} · 표시 ${filtered.length}</div>`;
   box.innerHTML = h;
 }
 
@@ -2514,11 +2494,6 @@ function openMemberDetail(id){
         <select onchange="editMemberField('${id}','isGuest',this.value==='1');renderMembers();renderFines()" style="width:100%;padding:4px 6px">
           <option value="0" ${!m.isGuest?"selected":""}>회원</option>
           <option value="1" ${m.isGuest?"selected":""}>비회원</option>
-        </select></div>
-      <div><label class="muted" style="font-size:11px">상태</label>
-        <select onchange="editMemberField('${id}','active',this.value==='1');renderMembers();renderFines()" style="width:100%;padding:4px 6px">
-          <option value="1" ${m.active!==false?"selected":""}>활동</option>
-          <option value="0" ${m.active===false?"selected":""}>휴회원</option>
         </select></div>
       <div><label class="muted" style="font-size:11px">가입일</label>
         <input type="date" value="${escapeAttr(m.joinDate||"")}" onchange="editMemberField('${id}','joinDate',this.value)" style="width:100%;padding:4px 6px;font-size:13px"/></div>
