@@ -120,7 +120,7 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.11</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.12</span>
 </header>
 
 <nav class="tabs">
@@ -287,6 +287,14 @@
 
   <!-- 회원 관리 -->
   <section id="tab-members">
+    <div class="card">
+      <h2>📥 기본 회원 명단</h2>
+      <div class="muted" style="font-size:12px;margin-bottom:6px">
+        수수빵 회원 명부 23명을 한번에 등록합니다 (중복은 자동 업데이트).
+      </div>
+      <button class="btn" onclick="loadDefaultMembers()">🚀 기본 회원 23명 불러오기</button>
+    </div>
+
     <div class="card">
       <h2>👥 회원 등록</h2>
       <div class="row">
@@ -2107,6 +2115,66 @@ function setMembers(o){ localStorage.setItem(MEMBERS_KEY, JSON.stringify(o)); }
 function getPayments(){ try{return JSON.parse(localStorage.getItem(PAYMENTS_KEY)||"{}")}catch(e){return{}} }
 function setPayments(o){ localStorage.setItem(PAYMENTS_KEY, JSON.stringify(o)); }
 function genId(){ return "m_"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+
+/* 수수빵 회원 명부 — 기본 데이터 (이미지에서 추출) */
+const DEFAULT_MEMBERS = [
+  {name:"강경선", phone:"010-2228-1776", skill:"S", birthYear:77, gender:"F", shirtSize:"90"},
+  {name:"권혜주", phone:"010-8662-0555", skill:"A", birthYear:84, gender:"F", shirtSize:"85"},
+  {name:"김영진", phone:"010-6588-9565", skill:"A", birthYear:82, gender:"M", shirtSize:"105"},
+  {name:"김위영", phone:"010-4846-3673", skill:"A", birthYear:85, gender:"M", shirtSize:"105"},
+  {name:"김정희", phone:"010-5465-4460", skill:"B", birthYear:69, gender:"F", shirtSize:"85"},
+  {name:"김현정", phone:"010-5558-0142", skill:"B", birthYear:74, gender:"F", shirtSize:"85"},
+  {name:"박광만", phone:"010-6578-8333", skill:"S", birthYear:68, gender:"M", shirtSize:"95"},
+  {name:"박미향", phone:"010-2582-1404", skill:"A", birthYear:79, gender:"F", shirtSize:"80"},
+  {name:"배재현", phone:"010-6228-7898", skill:"A", birthYear:74, gender:"M", shirtSize:"105"},
+  {name:"신정임", phone:"010-9630-3155", skill:"A", birthYear:79, gender:"F", shirtSize:"80"},
+  {name:"신지훈", phone:"010-9212-4870", skill:"A", birthYear:73, gender:"M", shirtSize:"100"},
+  {name:"유종영", phone:"010-9370-4430", skill:"A", birthYear:79, gender:"M", shirtSize:"95"},
+  {name:"윤상호", phone:"010-5231-1024", skill:"A", birthYear:74, gender:"M", shirtSize:"105"},
+  {name:"이동형", phone:"010-3779-6246", skill:"A", birthYear:80, gender:"M", shirtSize:"115"},
+  {name:"이락경", phone:"010-2853-1770", skill:"A", birthYear:73, gender:"M", shirtSize:"95"},
+  {name:"이선정", phone:"010-5278-8648", skill:"A", birthYear:77, gender:"F", shirtSize:"90"},
+  {name:"이정희", phone:"010-2003-6818", skill:"A", birthYear:65, gender:"F", shirtSize:"75"},
+  {name:"이정화", phone:"010-8504-0891", skill:"A", birthYear:70, gender:"F", shirtSize:"100"},
+  {name:"임선미", phone:"010-2615-5510", skill:"S", birthYear:76, gender:"F", shirtSize:"90"},
+  {name:"임성호", phone:"010-4585-0142", skill:"B", birthYear:71, gender:"M", shirtSize:"100"},
+  {name:"임희언", phone:"010-7705-0525", skill:"A", birthYear:82, gender:"F", shirtSize:"90"},
+  {name:"정민수", phone:"010-4851-6447", skill:"A", birthYear:75, gender:"M", shirtSize:"105"},
+  {name:"황재윤", phone:"010-8556-6221", skill:"A", birthYear:82, gender:"M", shirtSize:"105"}
+];
+
+function loadDefaultMembers(){
+  const cnt = DEFAULT_MEMBERS.length;
+  if(!confirm(`수수빵 회원 ${cnt}명을 불러옵니다.\n같은 이름의 회원이 있으면 정보가 덮어씌워집니다.\n계속?`)) return;
+  const members = getMembers();
+  const byName = {};
+  Object.values(members).forEach(m=>{byName[m.name] = m});
+  const today = new Date().toISOString().slice(0,10);
+  let added=0, updated=0;
+  DEFAULT_MEMBERS.forEach(d=>{
+    const existing = byName[d.name];
+    if(existing){
+      Object.assign(existing, {
+        gender: d.gender, phone: d.phone, skill: d.skill,
+        birthYear: d.birthYear, shirtSize: d.shirtSize
+      });
+      members[existing.id] = existing;
+      updated++;
+    } else {
+      const id = genId();
+      members[id] = {
+        id, name: d.name, gender: d.gender,
+        isGuest: false, phone: d.phone, skill: d.skill,
+        birthYear: d.birthYear, shirtSize: d.shirtSize,
+        note: "기본 명부 등록", joinDate: today, active: true
+      };
+      added++;
+    }
+  });
+  setMembers(members);
+  renderMembers(); renderFines();
+  alert(`✓ 완료\n신규 ${added}명 · 업데이트 ${updated}명`);
+}
 
 function addMember(){
   const name = document.getElementById("mNewName").value.trim();
