@@ -120,7 +120,7 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.17</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.18</span>
 </header>
 
 <nav class="tabs">
@@ -2458,10 +2458,11 @@ function renderMembers(){
   if(!box) return;
   if(filtered.length===0){ box.innerHTML = `<div class="muted" style="padding:10px">해당 회원 없음</div>`; return; }
   let h = `<table class="stats-table"><thead><tr>
-    <th>이름</th><th>성</th><th>급수</th><th>생년</th><th>티셔츠</th><th>연락처</th><th>구분</th><th>동작</th>
+    <th style="width:36px">#</th><th>이름</th><th>성</th><th>급수</th><th>생년</th><th>티셔츠</th><th>연락처</th><th>구분</th><th>동작</th>
   </tr></thead><tbody>`;
-  filtered.forEach(m=>{
+  filtered.forEach((m,i)=>{
     h += `<tr>
+      <td style="color:var(--sub)">${i+1}</td>
       <td style="text-align:left;padding-left:8px">
         <a href="#" onclick="openMemberDetail('${m.id}');return false" style="color:var(--accent)">${escapeHtml(m.name)}</a>
       </td>
