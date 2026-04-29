@@ -120,7 +120,7 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.14</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.15</span>
 </header>
 
 <nav class="tabs">
@@ -2472,7 +2472,7 @@ function renderMembers(){
       <td style="font-size:11px">${escapeHtml(m.phone||"")}</td>
       <td>${m.isGuest?'<span class="tag g">비</span>':'<span class="tag m">회</span>'}</td>
       <td>
-        <button class="btn sec small" onclick="openMemberDetail('${m.id}')" title="수정">✏️ 수정</button>
+        <button class="btn sec small" onclick="openMemberDetail('${m.id}')" title="수정">✏️</button>
         <button class="btn danger small" onclick="deleteMember('${m.id}')" title="삭제">🗑️</button>
       </td></tr>`;
   });
