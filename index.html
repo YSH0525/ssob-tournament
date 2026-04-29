@@ -120,7 +120,7 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.9</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.10</span>
 </header>
 
 <nav class="tabs">
@@ -3639,7 +3639,7 @@ async function aiTabRun(){
     const b64 = aiTabCanvasToBase64();
     bar.style.width = "30%";
     phase.textContent = `${s.provider} ${s.model} 호출 중... (2~6초)`;
-    const prompt = aiTabMode==="results" ? AI_PROMPT_RESULTS : AI_PROMPT_BRACKET;
+    const prompt = getAiPrompt(aiTabMode);
     let json;
     if(s.provider==="gemini") json = await callGeminiVision(s,b64,prompt);
     else if(s.provider==="claude") json = await callClaudeVision(s,b64,prompt);
