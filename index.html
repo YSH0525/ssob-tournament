@@ -120,7 +120,7 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.7</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.8</span>
 </header>
 
 <nav class="tabs">
@@ -888,7 +888,18 @@ function switchTab(name){
   if(name==="sync") { loadSupaSettings(); }
   if(name==="setup") renderCloneList();
 }
-document.querySelectorAll("nav.tabs button").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
+document.querySelectorAll("nav.tabs button").forEach(b=>b.addEventListener("click",()=>{
+  try { switchTab(b.dataset.tab); }
+  catch(err){ console.error("탭 전환 오류:", err); alert(`탭 오류: ${err.message}\n${err.stack?.slice(0,200)||""}`); }
+}));
+
+/* 글로벌 에러 캐치 - 디버깅 용이 */
+window.addEventListener("error", e=>{
+  console.error("전역 에러:", e.error||e.message, e);
+});
+window.addEventListener("unhandledrejection", e=>{
+  console.error("Promise 거부:", e.reason);
+});
 
 /* ============ 참가자 ============ */
 function addPlayer(){
