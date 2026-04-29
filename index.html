@@ -120,7 +120,7 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.19</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.20</span>
 </header>
 
 <nav class="tabs">
@@ -346,16 +346,6 @@
         <button class="btn sec small" onclick="closeMemberDetail()">✕ 닫기</button>
       </div>
       <div id="mdInfo" style="margin-top:8px"></div>
-      <h3 style="margin:12px 0 6px 0;font-size:14px">출전 내역</h3>
-      <div id="mdHistory" style="overflow-x:auto"></div>
-      <h3 style="margin:12px 0 6px 0;font-size:14px">입금 기록</h3>
-      <div class="row">
-        <input type="date" id="mdPayDate" />
-        <input type="number" id="mdPayAmount" placeholder="금액" style="width:100px" />
-        <input type="text" id="mdPayNote" placeholder="비고" style="flex:1;min-width:80px" />
-        <button class="btn small" onclick="addPayment()">+ 입금 기록</button>
-      </div>
-      <div id="mdPayments" style="margin-top:8px;overflow-x:auto"></div>
     </div>
   </section>
 
@@ -2568,7 +2558,6 @@ function openMemberDetail(id){
   if(!m) return;
   document.getElementById("memberDetailCard").classList.remove("hidden");
   document.getElementById("mdName").textContent = m.name;
-  document.getElementById("mdPayDate").value = new Date().toISOString().slice(0,10);
 
   // 정보 편집
   document.getElementById("mdInfo").innerHTML = `
@@ -2599,25 +2588,6 @@ function openMemberDetail(id){
         <input type="text" value="${escapeAttr(m.note||"")}" onchange="editMemberField('${id}','note',this.value)" style="width:100%;padding:4px 6px;font-size:13px"/></div>
     </div>`;
 
-  // 출전 내역
-  const meets = getMeets();
-  const keys = Object.keys(meets).sort().reverse();
-  let h = `<table class="stats-table"><thead><tr><th>대회</th><th>출</th><th>승</th><th>패</th><th>득</th><th>실</th><th>벌금</th></tr></thead><tbody>`;
-  let anyPlayed = false;
-  keys.forEach(k=>{
-    const stats = computeStats(meets[k]);
-    const p = stats.byPlayer[m.name];
-    if(!p || p.played===0) return;
-    anyPlayed = true;
-    h += `<tr><td style="text-align:left;padding-left:8px">${escapeHtml(k)}</td>
-      <td>${p.played}</td><td>${p.wins}</td><td>${p.losses}</td>
-      <td>${p.ptsFor}</td><td>${p.ptsAgainst}</td>
-      <td class="fine-cell">${(p.losses*FINE_PER_LOSS).toLocaleString()}</td></tr>`;
-  });
-  h += `</tbody></table>`;
-  document.getElementById("mdHistory").innerHTML = anyPlayed?h:`<div class="muted">출전 기록 없음</div>`;
-
-  renderPayments();
   document.getElementById("memberDetailCard").scrollIntoView({behavior:"smooth",block:"start"});
 }
 function closeMemberDetail(){
