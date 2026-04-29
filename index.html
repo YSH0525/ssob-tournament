@@ -120,7 +120,7 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.6</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.7</span>
 </header>
 
 <nav class="tabs">
@@ -300,7 +300,12 @@
         <button class="btn" onclick="addMember()">+ 추가</button>
       </div>
       <div class="row" style="margin-top:6px">
-        <input type="text" id="mNewPhone" placeholder="연락처 (선택)" style="flex:1;min-width:120px" />
+        <input type="text" id="mNewPhone" placeholder="연락처" style="flex:1;min-width:110px" />
+        <input type="text" id="mNewSkill" placeholder="급수(S/A/B...)" style="width:100px" />
+        <input type="number" id="mNewBirth" placeholder="생년(2자리)" style="width:90px" />
+        <input type="text" id="mNewShirt" placeholder="티셔츠" style="width:80px" />
+      </div>
+      <div class="row" style="margin-top:6px">
         <input type="text" id="mNewNote" placeholder="메모 (선택)" style="flex:1;min-width:120px" />
       </div>
     </div>
@@ -362,6 +367,9 @@
         </div>
         <div class="row">
           <label><input type="radio" name="aiMode" value="results" onchange="aiTabSetMode('results')"/> ✍️ 결과 (손글씨 점수 포함)</label>
+        </div>
+        <div class="row">
+          <label><input type="radio" name="aiMode" value="members" onchange="aiTabSetMode('members')"/> 👥 회원 명부 (이름/연락처/급수/티셔츠 일괄)</label>
         </div>
       </div>
 
@@ -2100,12 +2108,15 @@ function addMember(){
     gender: document.getElementById("mNewGender").value,
     isGuest: document.getElementById("mNewGuest").checked,
     phone: document.getElementById("mNewPhone").value.trim(),
+    skill: (document.getElementById("mNewSkill")?.value||"").trim().toUpperCase(),
+    birthYear: (document.getElementById("mNewBirth")?.value||"").trim(),
+    shirtSize: (document.getElementById("mNewShirt")?.value||"").trim(),
     note: document.getElementById("mNewNote").value.trim(),
     joinDate: new Date().toISOString().slice(0,10),
     active: true
   };
   setMembers(members);
-  ["mNewName","mNewPhone","mNewNote"].forEach(id=>document.getElementById(id).value="");
+  ["mNewName","mNewPhone","mNewSkill","mNewBirth","mNewShirt","mNewNote"].forEach(id=>{const el=document.getElementById(id); if(el) el.value="";});
   document.getElementById("mNewGuest").checked=false;
   document.getElementById("mNewName").focus();
   renderMembers(); renderFines();
@@ -2371,7 +2382,7 @@ function renderMembers(){
   if(!box) return;
   if(filtered.length===0){ box.innerHTML = `<div class="muted" style="padding:10px">해당 회원 없음</div>`; return; }
   let h = `<table class="stats-table"><thead><tr>
-    <th>이름</th><th>성별</th><th>구분</th><th>연락처</th><th>동작</th>
+    <th>이름</th><th>성</th><th>급수</th><th>생년</th><th>티셔츠</th><th>연락처</th><th>구분</th><th>동작</th>
   </tr></thead><tbody>`;
   filtered.forEach(m=>{
     h += `<tr>
@@ -2379,8 +2390,11 @@ function renderMembers(){
         <a href="#" onclick="openMemberDetail('${m.id}');return false" style="color:var(--accent)">${escapeHtml(m.name)}</a>
       </td>
       <td>${m.gender==="F"?"여":"남"}</td>
-      <td>${m.isGuest?'<span class="tag g">비</span>':'<span class="tag m">회</span>'}</td>
+      <td>${escapeHtml(m.skill||"")}</td>
+      <td>${escapeHtml(m.birthYear||"")}</td>
+      <td>${escapeHtml(m.shirtSize||"")}</td>
       <td style="font-size:11px">${escapeHtml(m.phone||"")}</td>
+      <td>${m.isGuest?'<span class="tag g">비</span>':'<span class="tag m">회</span>'}</td>
       <td>
         <button class="btn sec small" onclick="toggleMemberGuest('${m.id}')" title="회/비 전환">↔</button>
         <button class="btn danger small" onclick="deleteMember('${m.id}')">✕</button>
@@ -2499,6 +2513,12 @@ function openMemberDetail(id){
         <input type="date" value="${escapeAttr(m.joinDate||"")}" onchange="editMemberField('${id}','joinDate',this.value)" style="width:100%;padding:4px 6px;font-size:13px"/></div>
       <div><label class="muted" style="font-size:11px">연락처</label>
         <input type="text" value="${escapeAttr(m.phone||"")}" onchange="editMemberField('${id}','phone',this.value)" style="width:100%;padding:4px 6px;font-size:13px" placeholder="010-..."/></div>
+      <div><label class="muted" style="font-size:11px">급수</label>
+        <input type="text" value="${escapeAttr(m.skill||"")}" onchange="editMemberField('${id}','skill',this.value.toUpperCase());renderMembers()" style="width:100%;padding:4px 6px;font-size:13px" placeholder="S/A/B/C/D"/></div>
+      <div><label class="muted" style="font-size:11px">출생년도</label>
+        <input type="number" value="${escapeAttr(m.birthYear||"")}" onchange="editMemberField('${id}','birthYear',this.value);renderMembers()" style="width:100%;padding:4px 6px;font-size:13px" placeholder="77"/></div>
+      <div><label class="muted" style="font-size:11px">티셔츠</label>
+        <input type="text" value="${escapeAttr(m.shirtSize||"")}" onchange="editMemberField('${id}','shirtSize',this.value);renderMembers()" style="width:100%;padding:4px 6px;font-size:13px" placeholder="90/100"/></div>
       <div style="grid-column:1/-1"><label class="muted" style="font-size:11px">메모</label>
         <input type="text" value="${escapeAttr(m.note||"")}" onchange="editMemberField('${id}','note',this.value)" style="width:100%;padding:4px 6px;font-size:13px"/></div>
     </div>`;
@@ -3017,8 +3037,31 @@ JSON으로만 응답 (마크다운/설명 금지):
   "roster":[{"name":"김위영","cock":"2","mf":"2","mx":"2","donation":"1000"}]
 }`;
 
+const AI_PROMPT_MEMBERS = `이 이미지는 배드민턴 모임 회원 명부입니다.
+표 컬럼: [연번 | 이름 | 연락처 | 급수 | 티셔츠 사이즈]
+
+급수 컬럼은 보통 "S(77/여)" 또는 "A(82/남)" 형식 — 급수문자(S/A/B/C/D), 출생년도(2자리), 성별(남/여).
+
+JSON으로만 응답 (마크다운/설명 금지):
+{
+  "members": [
+    {"name":"강경선", "phone":"010-2228-1776", "skill":"S", "birthYear":77, "gender":"F", "shirtSize":"90"}
+  ]
+}
+
+규칙:
+- name: 한글 이름 (2~5자)
+- phone: 010-XXXX-XXXX 형식 (없으면 "")
+- skill: S/A/B/C/D 등 급수 문자 (없으면 "")
+- birthYear: 2자리 정수 (예: 77, 82). 4자리면 그대로
+- gender: "M" (남) / "F" (여)
+- shirtSize: 숫자 문자열 (예: "90","100","105"), 없으면 ""
+- 헤더 행/연번만 있는 빈 행은 제외`;
+
 function getAiPrompt(mode){
-  return mode==="results" ? AI_PROMPT_RESULTS : AI_PROMPT_BRACKET;
+  if(mode==="results") return AI_PROMPT_RESULTS;
+  if(mode==="members") return AI_PROMPT_MEMBERS;
+  return AI_PROMPT_BRACKET;
 }
 
 async function runAiOcr(mode){
@@ -3495,6 +3538,7 @@ let aiTabRotation = 0;
 let aiTabMode = "bracket";
 let aiTabRows = [];
 let aiTabRoster = [];
+let aiTabMembers = [];
 
 function aiTabSetMode(mode){
   aiTabMode = mode;
@@ -3595,6 +3639,32 @@ async function aiTabRun(){
 
     document.getElementById("aiTabRawText").textContent = JSON.stringify(json,null,2);
 
+    if(aiTabMode==="members"){
+      if(!json.members || !Array.isArray(json.members)){
+        throw new Error(`응답에 members 배열이 없습니다.\n응답: ${JSON.stringify(json).slice(0,200)}`);
+      }
+      if(json.members.length===0){
+        throw new Error("AI가 회원 명부를 인식하지 못했습니다.\n- 이미지 흐림/작음\n- 회전 필요\n- 표 일부만 프레임에 들어감");
+      }
+      aiTabMembers = json.members.map(m=>({
+        name: (m.name||"").trim(),
+        phone: (m.phone||"").trim(),
+        skill: (m.skill||"").trim().toUpperCase(),
+        birthYear: m.birthYear||"",
+        gender: (m.gender==="F"||m.gender==="여") ? "F" : "M",
+        shirtSize: (m.shirtSize||"").toString().trim()
+      })).filter(m=>/^[가-힣]{2,5}$/.test(m.name));
+      if(aiTabMembers.length===0){
+        throw new Error(`인식된 이름이 없습니다.\n원시 응답: ${JSON.stringify(json.members).slice(0,400)}`);
+      }
+      bar.style.width = "100%";
+      phase.textContent = `✓ ${aiTabMembers.length}명 회원 인식 완료`;
+      aiTabRenderReview();
+      document.getElementById("aiTabReviewCard").classList.remove("hidden");
+      document.getElementById("aiTabReviewCard").scrollIntoView({behavior:"smooth",block:"start"});
+      return;
+    }
+
     if(!json.games || !Array.isArray(json.games)){
       throw new Error(`응답에 games 배열이 없습니다.\n응답: ${JSON.stringify(json).slice(0,200)}`);
     }
@@ -3648,6 +3718,38 @@ async function aiTabRun(){
 function aiTabRenderReview(){
   const head = document.getElementById("aiTabReviewHead");
   const body = document.getElementById("aiTabReviewBody");
+  const rosterBox = document.getElementById("aiTabRosterPreview");
+
+  if(aiTabMode==="members"){
+    rosterBox.innerHTML = "";
+    head.innerHTML = `<tr>
+      <th style="width:30px">#</th><th>이름</th><th>성별</th><th>연락처</th>
+      <th>급수</th><th>출생년도</th><th>티셔츠</th><th>중복</th>
+    </tr>`;
+    body.innerHTML = "";
+    const existing = new Set(Object.values(getMembers()).map(m=>m.name));
+    aiTabMembers.forEach((m,i)=>{
+      const dup = existing.has(m.name);
+      const tr = document.createElement("tr");
+      tr.style.background = dup ? "#fee2e2" : "#fff";
+      tr.innerHTML = `
+        <td>${i+1}</td>
+        <td><input type="text" value="${escapeAttr(m.name)}" onchange="aiTabSetMemberField(${i},'name',this.value)" style="width:80px;border:0;padding:4px;background:transparent"></td>
+        <td><select onchange="aiTabSetMemberField(${i},'gender',this.value)" style="border:0;padding:4px;background:transparent">
+          <option value="M" ${m.gender!=="F"?"selected":""}>남</option>
+          <option value="F" ${m.gender==="F"?"selected":""}>여</option>
+        </select></td>
+        <td><input type="text" value="${escapeAttr(m.phone)}" onchange="aiTabSetMemberField(${i},'phone',this.value)" style="width:120px;border:0;padding:4px;font-size:11px;background:transparent"></td>
+        <td><input type="text" value="${escapeAttr(m.skill)}" onchange="aiTabSetMemberField(${i},'skill',this.value)" style="width:36px;border:0;padding:4px;text-align:center;background:transparent"></td>
+        <td><input type="number" value="${escapeAttr(m.birthYear)}" onchange="aiTabSetMemberField(${i},'birthYear',this.value)" style="width:50px;border:0;padding:4px;text-align:center;background:transparent"></td>
+        <td><input type="text" value="${escapeAttr(m.shirtSize)}" onchange="aiTabSetMemberField(${i},'shirtSize',this.value)" style="width:46px;border:0;padding:4px;text-align:center;background:transparent"></td>
+        <td>${dup?'<span class="tag g">중복</span>':'<span class="tag w">신규</span>'}</td>
+      `;
+      body.appendChild(tr);
+    });
+    return;
+  }
+
   head.innerHTML = aiTabMode==="results"
     ? `<tr><th style="width:30px">#</th><th colspan="2">팀1</th><th>점1</th><th colspan="2">팀2</th><th>점2</th></tr>`
     : `<tr><th style="width:30px">#</th><th colspan="2">팀1</th><th colspan="2">팀2</th></tr>`;
@@ -3714,6 +3816,10 @@ function aiTabSetField(i,key,val){
   aiTabRows[i][key] = val;
   if(["t1a","t1b","t2a","t2b"].includes(key)) aiTabRenderReview();
 }
+function aiTabSetMemberField(i,key,val){
+  aiTabMembers[i][key] = val;
+  if(key==="name") aiTabRenderReview();
+}
 function aiTabRemoveRoster(i){
   aiTabRoster.splice(i,1);
   aiTabRenderReview();
@@ -3722,12 +3828,48 @@ function aiTabCancel(){
   document.getElementById("aiTabReviewCard").classList.add("hidden");
   aiTabRows = [];
   aiTabRoster = [];
+  aiTabMembers = [];
 }
 function aiTabApply(){
   const autoReg = document.getElementById("aiTabAutoReg").checked;
   const members = getMembers();
   const memberByName = {};
   Object.values(members).forEach(m=>{memberByName[m.name]=m});
+
+  if(aiTabMode==="members"){
+    const today = new Date().toISOString().slice(0,10);
+    let added=0, updated=0;
+    aiTabMembers.forEach(r=>{
+      const existing = memberByName[r.name];
+      if(existing){
+        Object.assign(existing, {
+          gender: r.gender,
+          phone: r.phone || existing.phone || "",
+          skill: r.skill || existing.skill || "",
+          birthYear: r.birthYear || existing.birthYear || "",
+          shirtSize: r.shirtSize || existing.shirtSize || ""
+        });
+        members[existing.id] = existing;
+        updated++;
+      } else {
+        const id = genId();
+        members[id] = {
+          id, name: r.name, gender: r.gender,
+          isGuest: false, phone: r.phone||"", note:"AI 명부 등록",
+          skill: r.skill||"", birthYear: r.birthYear||"",
+          shirtSize: r.shirtSize||"",
+          joinDate: today, active: true
+        };
+        added++;
+      }
+    });
+    setMembers(members);
+    document.getElementById("aiTabReviewCard").classList.add("hidden");
+    aiTabMembers = [];
+    switchTab("members");
+    alert(`✓ 회원 명부 적용 완료\n신규 ${added}명 · 업데이트 ${updated}명`);
+    return;
+  }
 
   const maxG = Math.max(...aiTabRows.map(r=>r.gameNo||0), state.games.length);
   while(state.games.length<maxG) state.games.push(blankGame());
