@@ -120,7 +120,7 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.25</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.26</span>
 </header>
 
 <nav class="tabs">
@@ -489,6 +489,20 @@
           <button class="btn sec small" onclick="genParticipantsAll(false,'all')">전체 해제</button>
         </div>
         <div id="genParticipantsBox" style="max-height:220px;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:6px;padding:6px"></div>
+      </div>
+
+      <div style="padding:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;margin-top:8px">
+        <h3 style="margin:0 0 6px 0;font-size:13px">🤝 파트너 페어 (선택)</h3>
+        <div class="muted" style="font-size:11px;margin-bottom:6px">
+          이 대회에서만 적용. 같은 게임 추첨시 자동으로 같은 팀에 배치됩니다.<br>
+          동성 페어 → 남복/여복에서 같은 팀, 이성 페어 → 혼복에서 같은 팀
+        </div>
+        <div class="row">
+          <select id="pairSelA" style="flex:1"><option value="">선수 1</option></select>
+          <select id="pairSelB" style="flex:1"><option value="">선수 2</option></select>
+          <button class="btn sec small" onclick="addPair()">+ 페어</button>
+        </div>
+        <div id="pairsListBox" style="margin-top:6px"></div>
       </div>
 
       <div style="padding:10px;background:#f9fafb;border-radius:6px;margin-top:8px">
@@ -1154,10 +1168,19 @@ function renderGenParticipants(){
       ${m.isGuest?'<span class="tag g">비</span>':""}
     </label>`).join("");
   updateGenPreview();
+  refreshPairSelectors();
+  renderPairsList();
 }
 function genToggle(id, v){
   if(v) genSelection.add(id); else genSelection.delete(id);
   updateGenPreview();
+  refreshPairSelectors();
+  // 선택 해제된 선수가 페어에 있으면 그 페어 제거
+  const memberName = getMembers()[id]?.name;
+  if(!v && memberName){
+    genPairs = genPairs.filter(p=>!p.includes(memberName));
+    renderPairsList();
+  }
 }
 function genParticipantsAll(on, filter){
   const members = Object.values(getMembers()).filter(m=>m.active!==false);
@@ -1166,7 +1189,14 @@ function genParticipantsAll(on, filter){
       if(on) genSelection.add(m.id); else genSelection.delete(m.id);
     }
   });
+  if(!on){
+    // 전체 해제시 선택된 참가자가 사라지므로 페어도 정리
+    const stillSelected = new Set([...genSelection].map(id=>getMembers()[id]?.name).filter(Boolean));
+    genPairs = genPairs.filter(p=>stillSelected.has(p[0]) && stillSelected.has(p[1]));
+    renderPairsList();
+  }
   renderGenParticipants();
+  refreshPairSelectors();
 }
 
 function getGenParams(){
@@ -1491,14 +1521,10 @@ function generateRandomGames(selected, types, gpp, chosenCase){
   for(let i=0;i<c.mixGames;i++) gameTypes.push("혼복");
   shuffle(gameTypes);
 
-  // 파트너 매핑 (이름 기반)
-  const allMembers = Object.values(getMembers());
-  const memberByName = {}; allMembers.forEach(x=>memberByName[x.name]=x);
-
   // 같은 4명 내에서 파트너 페어를 같은 팀으로 배치
   const arrangeWithPartners = (four) => {
     for(let i=0;i<4;i++) for(let j=i+1;j<4;j++){
-      if(arePartners(four[i],four[j],memberByName)){
+      if(arePartnersInPairs(four[i],four[j])){
         const others = four.filter((_,k)=>k!==i && k!==j);
         return [four[i],four[j],others[0],others[1]];
       }
@@ -1507,7 +1533,6 @@ function generateRandomGames(selected, types, gpp, chosenCase){
   };
   // 혼복: 남자-여자 파트너 페어 우선 같은 팀
   const arrangeMixedPartners = (mPair, wPair) => {
-    // 두 남자, 두 여자 — 가능한 페어링 4가지 중 파트너 매칭 최대화
     const cases = [
       {t1m:0,t1w:0,t2m:1,t2w:1},
       {t1m:0,t1w:1,t2m:1,t2w:0}
@@ -1515,8 +1540,8 @@ function generateRandomGames(selected, types, gpp, chosenCase){
     let best = cases[0], bestScore=-1;
     cases.forEach(c=>{
       let score=0;
-      if(arePartners(mPair[c.t1m], wPair[c.t1w], memberByName)) score++;
-      if(arePartners(mPair[c.t2m], wPair[c.t2w], memberByName)) score++;
+      if(arePartnersInPairs(mPair[c.t1m], wPair[c.t1w])) score++;
+      if(arePartnersInPairs(mPair[c.t2m], wPair[c.t2w])) score++;
       if(score>bestScore){bestScore=score; best=c;}
     });
     return [mPair[best.t1m], wPair[best.t1w], mPair[best.t2m], wPair[best.t2w]];
@@ -2402,36 +2427,58 @@ function deleteMember(id){
   const p = getPayments(); delete p[id]; setPayments(p);
   renderMembers(); renderFines();
 }
-/* 파트너 양방향 설정 */
-function setMemberPartner(memberId, partnerId){
-  const members = getMembers();
-  const me = members[memberId];
-  if(!me) return;
-  // 기존 파트너 해제
-  if(me.partnerId && members[me.partnerId]){
-    delete members[me.partnerId].partnerId;
-  }
-  if(!partnerId){
-    delete me.partnerId;
-  } else {
-    const target = members[partnerId];
-    if(!target){ alert("대상 회원 없음"); return; }
-    // 대상이 이미 다른 파트너 있으면 그쪽도 해제
-    if(target.partnerId && members[target.partnerId]){
-      delete members[target.partnerId].partnerId;
-    }
-    me.partnerId = partnerId;
-    target.partnerId = memberId;
-  }
-  setMembers(members);
+/* 대진 생성용 일회성 파트너 페어 (이름 기준) */
+let genPairs = []; // [[name1, name2], ...]
+
+function arePartnersInPairs(name1, name2){
+  if(!name1 || !name2) return false;
+  return genPairs.some(([a,b])=>(a===name1&&b===name2)||(a===name2&&b===name1));
 }
 
-/* 두 이름이 파트너 관계인지 */
-function arePartners(name1, name2, memberByName){
-  if(!name1 || !name2) return false;
-  const a = memberByName[name1], b = memberByName[name2];
-  if(!a || !b) return false;
-  return a.partnerId === b.id || b.partnerId === a.id;
+function addPair(){
+  const a = document.getElementById("pairSelA").value;
+  const b = document.getElementById("pairSelB").value;
+  if(!a || !b){ alert("두 선수 모두 선택"); return; }
+  if(a===b){ alert("같은 선수 선택 불가"); return; }
+  // 이미 있는 페어 검사 + 중복 인물 검사
+  if(genPairs.some(p=>p.includes(a) || p.includes(b))){
+    if(!confirm("이미 페어로 묶인 선수가 있습니다. 기존 페어를 해제하고 새로 묶을까요?")) return;
+    genPairs = genPairs.filter(p=>!p.includes(a) && !p.includes(b));
+  }
+  genPairs.push([a,b]);
+  document.getElementById("pairSelA").value="";
+  document.getElementById("pairSelB").value="";
+  renderPairsList();
+}
+function removePair(idx){
+  genPairs.splice(idx,1);
+  renderPairsList();
+}
+function renderPairsList(){
+  const box = document.getElementById("pairsListBox");
+  if(!box) return;
+  if(genPairs.length===0){
+    box.innerHTML = `<div class="muted" style="font-size:11px">페어 없음</div>`;
+    return;
+  }
+  box.innerHTML = genPairs.map((p,i)=>
+    `<span class="chip" style="margin:2px;background:#fff3cd;border:1px solid #ffc107">
+      🤝 ${escapeHtml(p[0])} & ${escapeHtml(p[1])}
+      <button onclick="removePair(${i})" style="background:transparent;border:0;cursor:pointer;color:var(--lose)">✕</button>
+    </span>`).join("");
+}
+function refreshPairSelectors(){
+  const selA = document.getElementById("pairSelA");
+  const selB = document.getElementById("pairSelB");
+  if(!selA || !selB) return;
+  const {selected} = getGenParams();
+  // 이미 페어인 사람 제외
+  const used = new Set(genPairs.flat());
+  const available = selected.filter(p=>!used.has(p.name));
+  const opts = available.map(p=>
+    `<option value="${escapeAttr(p.name)}">${escapeHtml(p.name)} (${p.gender==="F"?"여":"남"})</option>`).join("");
+  selA.innerHTML = `<option value="">선수 1</option>${opts}`;
+  selB.innerHTML = `<option value="">선수 2</option>${opts}`;
 }
 
 function editMemberField(id, field, val){
@@ -2522,14 +2569,11 @@ function renderMembers(){
   let h = `<table class="stats-table"><thead><tr>
     <th style="width:22px;padding:4px 2px">#</th><th>이름</th><th>성</th><th>급수</th><th>생년</th><th>티셔츠</th><th>연락처</th>
   </tr></thead><tbody>`;
-  const allMembers = getMembers();
   filtered.forEach((m,i)=>{
-    const partner = m.partnerId ? allMembers[m.partnerId] : null;
-    const partnerLabel = partner ? `<span class="muted" style="font-size:10px"> 🤝${escapeHtml(partner.name)}</span>` : "";
     h += `<tr style="cursor:pointer" onclick="openMemberDetail('${m.id}')">
       <td style="color:var(--sub);padding:4px 2px;font-size:11px">${i+1}</td>
       <td style="text-align:left;padding-left:8px">
-        <span style="color:var(--accent);font-weight:600">${escapeHtml(m.name)}</span>${partnerLabel}
+        <span style="color:var(--accent);font-weight:600">${escapeHtml(m.name)}</span>
       </td>
       <td>${m.gender==="F"?"여":"남"}</td>
       <td>${escapeHtml(m.skill||"")}</td>
@@ -2656,15 +2700,6 @@ function openMemberDetail(id){
         <input type="number" value="${escapeAttr(m.birthYear||"")}" onchange="editMemberField('${id}','birthYear',this.value);renderMembers()" style="width:100%;padding:4px 6px;font-size:13px" placeholder="77"/></div>
       <div><label class="muted" style="font-size:11px">티셔츠</label>
         <input type="text" value="${escapeAttr(m.shirtSize||"")}" onchange="editMemberField('${id}','shirtSize',this.value);renderMembers()" style="width:100%;padding:4px 6px;font-size:13px" placeholder="90/100"/></div>
-      <div><label class="muted" style="font-size:11px">파트너</label>
-        ${(()=>{
-          const allMembers = Object.values(getMembers()).filter(x=>x.id!==id).sort((a,b)=>a.name.localeCompare(b.name,"ko"));
-          const opts = allMembers.map(x=>`<option value="${x.id}" ${m.partnerId===x.id?"selected":""}>${escapeHtml(x.name)} (${x.gender==="F"?"여":"남"})</option>`).join("");
-          return `<select onchange="setMemberPartner('${id}',this.value);renderMembers()" style="width:100%;padding:4px 6px;font-size:13px">
-            <option value="">— 없음 —</option>${opts}
-          </select>`;
-        })()}
-      </div>
       <div style="grid-column:1/-1"><label class="muted" style="font-size:11px">메모</label>
         <input type="text" value="${escapeAttr(m.note||"")}" onchange="editMemberField('${id}','note',this.value)" style="width:100%;padding:4px 6px;font-size:13px"/></div>
     </div>`;
@@ -4490,6 +4525,18 @@ function runMigrations(){
       console.log("✓ 마이그레이션: 이정화 → 이창화 적용");
     }
     done.push("rename_이정화_이창화");
+    localStorage.setItem(MIG_KEY, JSON.stringify(done));
+  }
+
+  // 마이그레이션 #2: 회원에서 partnerId 필드 제거 (이제 대진 생성시 일회성)
+  if(!done.includes("remove_member_partnerId")){
+    const members = getMembers();
+    let touched = false;
+    Object.values(members).forEach(m=>{
+      if(m.partnerId){ delete m.partnerId; touched = true; }
+    });
+    if(touched) setMembers(members);
+    done.push("remove_member_partnerId");
     localStorage.setItem(MIG_KEY, JSON.stringify(done));
   }
 }
