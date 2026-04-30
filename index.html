@@ -120,7 +120,7 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.26</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.27</span>
 </header>
 
 <nav class="tabs">
@@ -1521,7 +1521,65 @@ function generateRandomGames(selected, types, gpp, chosenCase){
   for(let i=0;i<c.mixGames;i++) gameTypes.push("혼복");
   shuffle(gameTypes);
 
-  // 같은 4명 내에서 파트너 페어를 같은 팀으로 배치
+  // 페어 분류 (성별 조합별)
+  const memberByName = {};
+  Object.values(getMembers()).forEach(m=>memberByName[m.name]=m);
+  const getGender = (n) => memberByName[n]?.gender === "F" ? "F" : "M";
+  const mmPairs = [], ffPairs = [], mfPairs = [];
+  genPairs.forEach(([a,b])=>{
+    const ga=getGender(a), gb=getGender(b);
+    if(ga==="M"&&gb==="M") mmPairs.push([a,b]);
+    else if(ga==="F"&&gb==="F") ffPairs.push([a,b]);
+    else if(ga==="M"&&gb==="F") mfPairs.push([a,b]);
+    else mfPairs.push([b,a]); // [M, F]로 정규화
+  });
+
+  // 페어 우선 픽 (동성, n명 추첨)
+  function pickWithPairs(remQuota, n, validPairs){
+    const result = [];
+    const usable = validPairs.filter(([a,b])=>(remQuota[a]||0)>0 && (remQuota[b]||0)>0);
+    shuffle(usable);
+    for(const [a,b] of usable){
+      if(result.length+2 > n) break;
+      if(result.includes(a)||result.includes(b)) continue;
+      result.push(a,b);
+    }
+    while(result.length < n){
+      const cands = Object.entries(remQuota).filter(([nm,q])=>q>0 && !result.includes(nm));
+      if(cands.length===0) break;
+      shuffle(cands);
+      cands.sort((a,b)=>b[1]-a[1]);
+      result.push(cands[0][0]);
+    }
+    if(result.length<n) throw new Error(`선수 부족: ${n}명 필요`);
+    return result;
+  }
+
+  // 혼복: 남녀 페어 우선으로 2팀 구성
+  function pickMixedWithPairs(menRem, wmnRem){
+    const teams = []; // [[m,w],[m,w]]
+    const usable = mfPairs.filter(([m,w])=>(menRem[m]||0)>0 && (wmnRem[w]||0)>0);
+    shuffle(usable);
+    for(const [m,w] of usable){
+      if(teams.length>=2) break;
+      if(teams.some(t=>t[0]===m||t[1]===w)) continue;
+      teams.push([m,w]);
+    }
+    while(teams.length<2){
+      const usedM = new Set(teams.map(t=>t[0]));
+      const usedW = new Set(teams.map(t=>t[1]));
+      const mC = Object.entries(menRem).filter(([n,q])=>q>0 && !usedM.has(n));
+      const wC = Object.entries(wmnRem).filter(([n,q])=>q>0 && !usedW.has(n));
+      if(mC.length===0||wC.length===0) break;
+      shuffle(mC); mC.sort((a,b)=>b[1]-a[1]);
+      shuffle(wC); wC.sort((a,b)=>b[1]-a[1]);
+      teams.push([mC[0][0], wC[0][0]]);
+    }
+    if(teams.length<2) throw new Error("혼복 선수 부족");
+    return teams;
+  }
+
+  // 페어를 같은 팀(t1)으로 배치
   const arrangeWithPartners = (four) => {
     for(let i=0;i<4;i++) for(let j=i+1;j<4;j++){
       if(arePartnersInPairs(four[i],four[j])){
@@ -1531,45 +1589,24 @@ function generateRandomGames(selected, types, gpp, chosenCase){
     }
     return four;
   };
-  // 혼복: 남자-여자 파트너 페어 우선 같은 팀
-  const arrangeMixedPartners = (mPair, wPair) => {
-    const cases = [
-      {t1m:0,t1w:0,t2m:1,t2w:1},
-      {t1m:0,t1w:1,t2m:1,t2w:0}
-    ];
-    let best = cases[0], bestScore=-1;
-    cases.forEach(c=>{
-      let score=0;
-      if(arePartnersInPairs(mPair[c.t1m], wPair[c.t1w])) score++;
-      if(arePartnersInPairs(mPair[c.t2m], wPair[c.t2w])) score++;
-      if(score>bestScore){bestScore=score; best=c;}
-    });
-    return [mPair[best.t1m], wPair[best.t1w], mPair[best.t2m], wPair[best.t2w]];
-  };
 
   const games = [];
   gameTypes.forEach(type=>{
     let t1=["",""], t2=["",""];
     if(type==="남복"){
-      const picked = pickN(menNam, 4);
-      shuffle(picked);
+      const picked = pickWithPairs(menNam, 4, mmPairs);
       const arranged = arrangeWithPartners(picked);
       t1=[arranged[0],arranged[1]]; t2=[arranged[2],arranged[3]];
       picked.forEach(n=>menNam[n]--);
     } else if(type==="여복"){
-      const picked = pickN(wmnYeo, 4);
-      shuffle(picked);
+      const picked = pickWithPairs(wmnYeo, 4, ffPairs);
       const arranged = arrangeWithPartners(picked);
       t1=[arranged[0],arranged[1]]; t2=[arranged[2],arranged[3]];
       picked.forEach(n=>wmnYeo[n]--);
     } else {
-      const m = pickN(menMix, 2);
-      const w = pickN(wmnMix, 2);
-      shuffle(m); shuffle(w);
-      const arranged = arrangeMixedPartners(m, w);
-      t1=[arranged[0], arranged[1]]; t2=[arranged[2], arranged[3]];
-      m.forEach(n=>menMix[n]--);
-      w.forEach(n=>wmnMix[n]--);
+      const teams = pickMixedWithPairs(menMix, wmnMix);
+      t1=[teams[0][0], teams[0][1]]; t2=[teams[1][0], teams[1][1]];
+      teams.forEach(([m,w])=>{ menMix[m]--; wmnMix[w]--; });
     }
     games.push({t1a:t1[0],t1b:t1[1],t2a:t2[0],t2b:t2[1],s1:"",s2:"",type});
   });
