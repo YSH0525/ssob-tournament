@@ -120,7 +120,7 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.22</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.23</span>
 </header>
 
 <nav class="tabs">
@@ -287,13 +287,13 @@
 
   <!-- 회원 관리 -->
   <section id="tab-members">
-    <div class="card">
-      <h2>📥 기본 회원 명단</h2>
-      <div class="muted" style="font-size:12px;margin-bottom:6px">
+    <details class="card" id="defaultMembersCard">
+      <summary style="cursor:pointer;font-weight:700;font-size:15px">📥 기본 회원 명단</summary>
+      <div class="muted" style="font-size:12px;margin:8px 0 6px 0">
         수수빵 회원 명부 23명을 한번에 등록합니다 (중복은 자동 업데이트).
       </div>
       <button class="btn" onclick="loadDefaultMembers()">🚀 기본 회원 23명 불러오기</button>
-    </div>
+    </details>
 
     <div class="card">
       <h2>👥 회원 등록</h2>
@@ -870,7 +870,7 @@ function switchTab(name){
   if(name==="player") renderPlayerStats();
   if(name==="history") {renderMeetList(); renderHistory();}
   if(name==="share") renderShare();
-  if(name==="members") {renderMembers(); renderFines();}
+  if(name==="members") {renderMembers(); renderFines(); updateDefaultCard();}
   if(name==="results") renderResultsTable();
   if(name==="games") renderGenParticipants();
   if(name==="advanced") renderAdvanced();
@@ -2124,6 +2124,15 @@ const DEFAULT_MEMBERS = [
   {name:"황재윤", phone:"010-8556-6221", skill:"A", birthYear:82, gender:"M", shirtSize:"105"}
 ];
 
+function updateDefaultCard(){
+  const card = document.getElementById("defaultMembersCard");
+  if(!card) return;
+  const memberCount = Object.keys(getMembers()).length;
+  // 회원 0명이면 펼쳐서 안내, 1명 이상이면 접기
+  if(memberCount === 0){ card.setAttribute("open",""); }
+  else { card.removeAttribute("open"); }
+}
+
 function loadDefaultMembers(){
   const cnt = DEFAULT_MEMBERS.length;
   if(!confirm(`수수빵 회원 ${cnt}명을 불러옵니다.\n같은 이름의 회원이 있으면 정보가 덮어씌워집니다.\n계속?`)) return;
@@ -2154,6 +2163,9 @@ function loadDefaultMembers(){
   });
   setMembers(members);
   renderMembers(); renderFines();
+  // 로드 완료 후 자동 접기
+  const card = document.getElementById("defaultMembersCard");
+  if(card) card.removeAttribute("open");
   alert(`✓ 완료\n신규 ${added}명 · 업데이트 ${updated}명`);
 }
 
