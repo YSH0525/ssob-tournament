@@ -120,7 +120,7 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.24</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.25</span>
 </header>
 
 <nav class="tabs">
@@ -1491,24 +1491,58 @@ function generateRandomGames(selected, types, gpp, chosenCase){
   for(let i=0;i<c.mixGames;i++) gameTypes.push("혼복");
   shuffle(gameTypes);
 
+  // 파트너 매핑 (이름 기반)
+  const allMembers = Object.values(getMembers());
+  const memberByName = {}; allMembers.forEach(x=>memberByName[x.name]=x);
+
+  // 같은 4명 내에서 파트너 페어를 같은 팀으로 배치
+  const arrangeWithPartners = (four) => {
+    for(let i=0;i<4;i++) for(let j=i+1;j<4;j++){
+      if(arePartners(four[i],four[j],memberByName)){
+        const others = four.filter((_,k)=>k!==i && k!==j);
+        return [four[i],four[j],others[0],others[1]];
+      }
+    }
+    return four;
+  };
+  // 혼복: 남자-여자 파트너 페어 우선 같은 팀
+  const arrangeMixedPartners = (mPair, wPair) => {
+    // 두 남자, 두 여자 — 가능한 페어링 4가지 중 파트너 매칭 최대화
+    const cases = [
+      {t1m:0,t1w:0,t2m:1,t2w:1},
+      {t1m:0,t1w:1,t2m:1,t2w:0}
+    ];
+    let best = cases[0], bestScore=-1;
+    cases.forEach(c=>{
+      let score=0;
+      if(arePartners(mPair[c.t1m], wPair[c.t1w], memberByName)) score++;
+      if(arePartners(mPair[c.t2m], wPair[c.t2w], memberByName)) score++;
+      if(score>bestScore){bestScore=score; best=c;}
+    });
+    return [mPair[best.t1m], wPair[best.t1w], mPair[best.t2m], wPair[best.t2w]];
+  };
+
   const games = [];
   gameTypes.forEach(type=>{
     let t1=["",""], t2=["",""];
     if(type==="남복"){
       const picked = pickN(menNam, 4);
       shuffle(picked);
-      t1=[picked[0],picked[1]]; t2=[picked[2],picked[3]];
+      const arranged = arrangeWithPartners(picked);
+      t1=[arranged[0],arranged[1]]; t2=[arranged[2],arranged[3]];
       picked.forEach(n=>menNam[n]--);
     } else if(type==="여복"){
       const picked = pickN(wmnYeo, 4);
       shuffle(picked);
-      t1=[picked[0],picked[1]]; t2=[picked[2],picked[3]];
+      const arranged = arrangeWithPartners(picked);
+      t1=[arranged[0],arranged[1]]; t2=[arranged[2],arranged[3]];
       picked.forEach(n=>wmnYeo[n]--);
     } else {
       const m = pickN(menMix, 2);
       const w = pickN(wmnMix, 2);
       shuffle(m); shuffle(w);
-      t1=[m[0], w[0]]; t2=[m[1], w[1]];
+      const arranged = arrangeMixedPartners(m, w);
+      t1=[arranged[0], arranged[1]]; t2=[arranged[2], arranged[3]];
       m.forEach(n=>menMix[n]--);
       w.forEach(n=>wmnMix[n]--);
     }
@@ -2368,6 +2402,38 @@ function deleteMember(id){
   const p = getPayments(); delete p[id]; setPayments(p);
   renderMembers(); renderFines();
 }
+/* 파트너 양방향 설정 */
+function setMemberPartner(memberId, partnerId){
+  const members = getMembers();
+  const me = members[memberId];
+  if(!me) return;
+  // 기존 파트너 해제
+  if(me.partnerId && members[me.partnerId]){
+    delete members[me.partnerId].partnerId;
+  }
+  if(!partnerId){
+    delete me.partnerId;
+  } else {
+    const target = members[partnerId];
+    if(!target){ alert("대상 회원 없음"); return; }
+    // 대상이 이미 다른 파트너 있으면 그쪽도 해제
+    if(target.partnerId && members[target.partnerId]){
+      delete members[target.partnerId].partnerId;
+    }
+    me.partnerId = partnerId;
+    target.partnerId = memberId;
+  }
+  setMembers(members);
+}
+
+/* 두 이름이 파트너 관계인지 */
+function arePartners(name1, name2, memberByName){
+  if(!name1 || !name2) return false;
+  const a = memberByName[name1], b = memberByName[name2];
+  if(!a || !b) return false;
+  return a.partnerId === b.id || b.partnerId === a.id;
+}
+
 function editMemberField(id, field, val){
   const m = getMembers();
   if(!m[id]) return;
@@ -2456,11 +2522,14 @@ function renderMembers(){
   let h = `<table class="stats-table"><thead><tr>
     <th style="width:22px;padding:4px 2px">#</th><th>이름</th><th>성</th><th>급수</th><th>생년</th><th>티셔츠</th><th>연락처</th>
   </tr></thead><tbody>`;
+  const allMembers = getMembers();
   filtered.forEach((m,i)=>{
+    const partner = m.partnerId ? allMembers[m.partnerId] : null;
+    const partnerLabel = partner ? `<span class="muted" style="font-size:10px"> 🤝${escapeHtml(partner.name)}</span>` : "";
     h += `<tr style="cursor:pointer" onclick="openMemberDetail('${m.id}')">
       <td style="color:var(--sub);padding:4px 2px;font-size:11px">${i+1}</td>
       <td style="text-align:left;padding-left:8px">
-        <span style="color:var(--accent);font-weight:600">${escapeHtml(m.name)}</span>
+        <span style="color:var(--accent);font-weight:600">${escapeHtml(m.name)}</span>${partnerLabel}
       </td>
       <td>${m.gender==="F"?"여":"남"}</td>
       <td>${escapeHtml(m.skill||"")}</td>
@@ -2587,6 +2656,15 @@ function openMemberDetail(id){
         <input type="number" value="${escapeAttr(m.birthYear||"")}" onchange="editMemberField('${id}','birthYear',this.value);renderMembers()" style="width:100%;padding:4px 6px;font-size:13px" placeholder="77"/></div>
       <div><label class="muted" style="font-size:11px">티셔츠</label>
         <input type="text" value="${escapeAttr(m.shirtSize||"")}" onchange="editMemberField('${id}','shirtSize',this.value);renderMembers()" style="width:100%;padding:4px 6px;font-size:13px" placeholder="90/100"/></div>
+      <div><label class="muted" style="font-size:11px">파트너</label>
+        ${(()=>{
+          const allMembers = Object.values(getMembers()).filter(x=>x.id!==id).sort((a,b)=>a.name.localeCompare(b.name,"ko"));
+          const opts = allMembers.map(x=>`<option value="${x.id}" ${m.partnerId===x.id?"selected":""}>${escapeHtml(x.name)} (${x.gender==="F"?"여":"남"})</option>`).join("");
+          return `<select onchange="setMemberPartner('${id}',this.value);renderMembers()" style="width:100%;padding:4px 6px;font-size:13px">
+            <option value="">— 없음 —</option>${opts}
+          </select>`;
+        })()}
+      </div>
       <div style="grid-column:1/-1"><label class="muted" style="font-size:11px">메모</label>
         <input type="text" value="${escapeAttr(m.note||"")}" onchange="editMemberField('${id}','note',this.value)" style="width:100%;padding:4px 6px;font-size:13px"/></div>
     </div>`;
