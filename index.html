@@ -120,7 +120,7 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.20</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.21</span>
 </header>
 
 <nav class="tabs">
@@ -329,15 +329,6 @@
         <button class="m-tab" data-genderfilter="F" onclick="setGenderFilter('F')" style="flex:1;background:transparent;border:0;border-bottom:2px solid transparent;padding:8px;color:var(--sub);cursor:pointer">여자</button>
       </div>
       <div id="membersBox" style="overflow-x:auto"></div>
-    </div>
-
-    <div class="card">
-      <h2>💰 벌금 정산 현황</h2>
-      <div class="row">
-        <button class="btn sec small" onclick="exportFinesCSV()">📄 CSV 내보내기</button>
-        <span class="muted">누적 벌금 − 입금 합계 = 미납금</span>
-      </div>
-      <div id="finesBox" style="margin-top:8px;overflow-x:auto"></div>
     </div>
 
     <div class="card hidden" id="memberDetailCard">
