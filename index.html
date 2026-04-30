@@ -120,7 +120,7 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.23</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.24</span>
 </header>
 
 <nav class="tabs">
@@ -4357,6 +4357,10 @@ loadAiSettings();
 loadKakaoKey();
 loadSupaSettings();
 renderCloneList();
+// 첫 화면이 회원 탭이므로 회원 목록 즉시 렌더
+renderMembers();
+renderFines();
+updateDefaultCard();
 
 /* localStorage 데이터 마이그레이션 (1회성 수정사항 반영) */
 function runMigrations(){
