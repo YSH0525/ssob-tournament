@@ -121,7 +121,7 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.04.18.27</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.06.07.1</span>
 </header>
 
 <nav class="tabs">
@@ -368,6 +368,9 @@
         <div class="row">
           <label><input type="radio" name="aiMode" value="results" onchange="aiTabSetMode('results')"/> ✍️ 결과 (손글씨 점수 포함)</label>
         </div>
+        <div class="row">
+          <label><input type="radio" name="aiMode" value="document" onchange="aiTabSetMode('document')"/> 📄 문서 인식 (PaddleOCR-VL, 수기 문서 복원)</label>
+        </div>
       </div>
 
       <div style="padding:10px;background:#f9fafb;border-radius:6px;margin-bottom:10px">
@@ -397,24 +400,30 @@
 
       <div class="card hidden" id="aiTabReviewCard" style="padding:10px">
         <h3 style="margin:0 0 8px 0;font-size:14px">④ 인식 결과 검토</h3>
-        <div class="muted" style="font-size:11px;margin-bottom:6px">
+        <div class="muted" id="aiTabReviewHelp" style="font-size:11px;margin-bottom:6px">
           🟢 정확매칭 · 🟠 유사매칭(자동교정) · 🔴 매칭 실패(수정 또는 그대로 적용)
         </div>
         <div id="aiTabRosterPreview"></div>
-        <div style="overflow-x:auto">
+        <div id="aiTabDocumentPreview" class="hidden"></div>
+        <div id="aiTabTableWrap" style="overflow-x:auto">
           <table class="games-table"><thead id="aiTabReviewHead"></thead><tbody id="aiTabReviewBody"></tbody></table>
         </div>
         <div class="row" style="margin-top:10px;justify-content:space-between">
-          <label style="font-size:12px"><input type="checkbox" id="aiTabAutoReg" checked /> 미등록 이름 자동 회원 등록</label>
+          <label id="aiTabAutoRegLabel" style="font-size:12px"><input type="checkbox" id="aiTabAutoReg" checked /> 미등록 이름 자동 회원 등록</label>
           <div>
             <button class="btn sec small" onclick="aiTabCancel()">취소</button>
-            <button class="btn" onclick="aiTabApply()">✓ 적용</button>
+            <button class="btn" id="aiTabApplyBtn" onclick="aiTabApply()">✓ 적용</button>
           </div>
         </div>
         <details style="margin-top:10px">
           <summary class="muted" style="font-size:11px">🔍 원시 AI 응답 (디버그)</summary>
           <pre id="aiTabRawText" style="font-size:10px;background:#f3f4f6;padding:6px;border-radius:4px;overflow:auto;max-height:180px;white-space:pre-wrap"></pre>
         </details>
+      </div>
+
+      <div class="card" style="padding:10px">
+        <h3 style="margin:0 0 8px 0;font-size:14px">📚 저장된 문서</h3>
+        <div id="aiSavedDocsBox" class="muted" style="font-size:12px">저장된 문서 없음</div>
       </div>
     </div>
   </section>
@@ -865,6 +874,7 @@ const FINE_PER_LOSS = 1000;
 const WIN_SCORE = 25;
 const STORAGE_KEY = "ssob_meets_v1";
 const CURRENT_KEY = "ssob_current_v1";
+const DOCS_KEY = "ssob_documents_v1";
 
 let state = null; // { date, name, players:[{name,isGuest}], games:[{...}] }
 
@@ -898,6 +908,7 @@ function switchTab(name){
   if(name==="advanced") renderAdvanced();
   if(name==="sync") { loadSupaSettings(); }
   if(name==="setup") renderCloneList();
+  if(name==="ai") renderSavedDocuments();
 }
 document.querySelectorAll("nav.tabs button").forEach(b=>b.addEventListener("click",()=>{
   try { switchTab(b.dataset.tab); }
@@ -3300,7 +3311,36 @@ JSON으로만 응답 (마크다운/설명 금지):
   "roster":[{"name":"김위영","cock":"2","mf":"2","mx":"2","donation":"1000"}]
 }`;
 
+const AI_PROMPT_DOCUMENT = `이 이미지는 일반 수기/인쇄 문서입니다.
+목표는 OCR 텍스트만 뽑는 것이 아니라 **문서 형태를 최대한 그대로 복원**하는 것입니다.
+
+반드시 JSON 객체 하나로만 응답하세요. 마크다운 코드펜스와 설명은 금지합니다.
+
+복원 기준:
+- 제목, 문단, 줄바꿈, 체크박스, 번호, 표, 빈칸, 서명/메모 영역을 최대한 유지
+- 손글씨는 읽히는 그대로 적고, 불확실하면 [?]를 붙임
+- 표는 행/열 구조를 유지
+- 원본 위치 순서(위→아래, 좌→우)를 지킴
+- 문서에 없는 내용을 추측해서 추가하지 않음
+
+응답 형식:
+{
+  "document": {
+    "title": "문서 제목 또는 첫 줄",
+    "markdown": "원본 레이아웃을 최대한 유지한 Markdown",
+    "html": "표와 줄바꿈을 유지한 HTML (가능하면 table 사용)",
+    "plainText": "순수 텍스트",
+    "blocks": [
+      {"type":"title|paragraph|table|checkbox|field|signature|note","text":"내용","confidence":0.0}
+    ],
+    "tables": [
+      {"rows":[["헤더1","헤더2"],["값1","값2"]]}
+    ]
+  }
+}`;
+
 function getAiPrompt(mode){
+  if(mode==="document") return AI_PROMPT_DOCUMENT;
   if(mode==="results") return AI_PROMPT_RESULTS;
   return AI_PROMPT_BRACKET;
 }
@@ -3565,6 +3605,223 @@ async function callPaddleVision(s,b64,prompt){
   return parseJsonFromText(typeof text==="string" ? text : JSON.stringify(text));
 }
 
+async function callVisionText(s,b64,prompt,maxTokens=8000){
+  if(s.provider==="gemini"){
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(s.model)}:generateContent?key=${encodeURIComponent(s.key)}`;
+    const res = await fetch(url,{
+      method:"POST",
+      headers:{"content-type":"application/json"},
+      body: JSON.stringify({
+        contents:[{parts:[{text:prompt},{inline_data:{mime_type:"image/jpeg",data:b64}}]}],
+        generationConfig:{response_mime_type:"application/json",temperature:0.1}
+      })
+    });
+    if(!res.ok) throw new Error(`Gemini API ${res.status}: ${(await res.text()).slice(0,300)}`);
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || JSON.stringify(data);
+  }
+  if(s.provider==="claude"){
+    const res = await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",
+      headers:{
+        "x-api-key":s.key,
+        "anthropic-version":"2023-06-01",
+        "anthropic-dangerous-direct-browser-access":"true",
+        "content-type":"application/json"
+      },
+      body: JSON.stringify({
+        model:s.model,
+        max_tokens:maxTokens,
+        messages:[{role:"user",content:[
+          {type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}},
+          {type:"text",text:prompt}
+        ]}]
+      })
+    });
+    if(!res.ok) throw new Error(`Claude API ${res.status}: ${(await res.text()).slice(0,300)}`);
+    const data = await res.json();
+    return data.content?.[0]?.text || JSON.stringify(data);
+  }
+  if(s.provider==="paddle"){
+    if(!s.endpoint) throw new Error("PaddleOCR 엔드포인트 URL이 비어 있습니다.");
+    const headers = {"content-type":"application/json"};
+    if(s.key) headers["Authorization"] = "Bearer "+s.key;
+    const res = await fetch(s.endpoint,{
+      method:"POST",
+      headers,
+      body: JSON.stringify({
+        model:s.model || "PaddleOCR-VL",
+        temperature:0.05,
+        max_tokens:maxTokens,
+        messages:[{role:"user",content:[
+          {type:"text",text:prompt},
+          {type:"image_url",image_url:{url:`data:image/jpeg;base64,${b64}`}}
+        ]}]
+      })
+    });
+    if(!res.ok) throw new Error(`PaddleOCR 서버 ${res.status}: ${(await res.text()).slice(0,300)}`);
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content
+      ?? data.markdown ?? data.md ?? data.html ?? data.text ?? data.result ?? data.output;
+    return typeof text==="string" ? text : JSON.stringify(text || data);
+  }
+  const res = await fetch("https://api.openai.com/v1/chat/completions",{
+    method:"POST",
+    headers:{"Authorization":"Bearer "+s.key,"content-type":"application/json"},
+    body: JSON.stringify({
+      model:s.model,
+      response_format:{type:"json_object"},
+      max_tokens:maxTokens,
+      messages:[{role:"user",content:[
+        {type:"text",text:prompt},
+        {type:"image_url",image_url:{url:`data:image/jpeg;base64,${b64}`}}
+      ]}]
+    })
+  });
+  if(!res.ok) throw new Error(`OpenAI API ${res.status}: ${(await res.text()).slice(0,300)}`);
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content || JSON.stringify(data);
+}
+
+async function callDocumentVision(s,b64,prompt){
+  const rawText = await callVisionText(s,b64,prompt,10000);
+  try{
+    return normalizeDocumentResult(parseJsonFromText(rawText), rawText);
+  }catch(e){
+    return normalizeDocumentResult(rawText, rawText);
+  }
+}
+
+function stripHtmlTags(html){
+  return String(html||"").replace(/<br\s*\/?>/gi,"\n").replace(/<\/(p|div|tr|h[1-6])>/gi,"\n").replace(/<[^>]+>/g,"").replace(/\n{3,}/g,"\n\n").trim();
+}
+
+function sanitizeDocumentHtml(html){
+  return String(html||"")
+    .replace(new RegExp("<script[\\s\\S]*?<\\/script>","gi"),"")
+    .replace(new RegExp("<iframe[\\s\\S]*?<\\/iframe>","gi"),"")
+    .replace(/\son\w+\s*=\s*(['"]).*?\1/gi,"")
+    .replace(/\s(href|src)\s*=\s*(['"])\s*javascript:[\s\S]*?\2/gi,"");
+}
+
+function markdownToDocumentHtml(md){
+  const lines = String(md||"").replace(/\r\n/g,"\n").split("\n");
+  const out = [];
+  for(let i=0;i<lines.length;i++){
+    const line = lines[i];
+    if(/^\s*\|.*\|\s*$/.test(line) && i+1<lines.length && /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$/.test(lines[i+1])){
+      const tableLines = [line];
+      i += 2;
+      while(i<lines.length && /^\s*\|.*\|\s*$/.test(lines[i])){ tableLines.push(lines[i]); i++; }
+      i--;
+      const rows = tableLines.map(r=>r.trim().replace(/^\||\|$/g,"").split("|").map(c=>c.trim()));
+      out.push(tableRowsToHtml(rows));
+      continue;
+    }
+    if(!line.trim()){ out.push(`<div style="height:10px"></div>`); continue; }
+    const h = line.match(/^(#{1,6})\s+(.+)$/);
+    if(h){
+      const level = Math.min(4,h[1].length);
+      out.push(`<h${level} style="margin:8px 0 4px">${escapeHtml(h[2])}</h${level}>`);
+    } else if(/^\s*[-*]\s+/.test(line)){
+      out.push(`<div style="margin:2px 0 2px 14px">• ${escapeHtml(line.replace(/^\s*[-*]\s+/,""))}</div>`);
+    } else if(/^\s*(☑|☐|\[[ xX]\])/.test(line)){
+      out.push(`<div style="margin:3px 0">${escapeHtml(line)}</div>`);
+    } else {
+      out.push(`<div style="white-space:pre-wrap;margin:3px 0">${escapeHtml(line)}</div>`);
+    }
+  }
+  return out.join("");
+}
+
+function tableRowsToHtml(rows){
+  if(!Array.isArray(rows) || rows.length===0) return "";
+  return `<table class="stats-table" style="margin:8px 0;width:100%;border-collapse:collapse">${rows.map((row,ri)=>
+    `<tr>${(Array.isArray(row)?row:Object.values(row||{})).map(c=>`<${ri===0?"th":"td"} style="border:1px solid #9ca3af;padding:5px;vertical-align:top;text-align:left">${escapeHtml(c==null?"":String(c))}</${ri===0?"th":"td"}>`).join("")}</tr>`
+  ).join("")}</table>`;
+}
+
+function blocksToMarkdown(blocks){
+  if(!Array.isArray(blocks)) return "";
+  return blocks.map(b=>{
+    if(typeof b==="string") return b;
+    const type = b.type || "";
+    const text = b.text || b.content || "";
+    if(type==="title") return `# ${text}`;
+    if(type==="checkbox") return `- [ ] ${text}`;
+    return text;
+  }).filter(Boolean).join("\n\n");
+}
+
+function flattenDocumentBlocks(items, out=[]){
+  if(!Array.isArray(items)) return out;
+  items.forEach(item=>{
+    if(!item) return;
+    if(typeof item==="string"){ out.push({type:"paragraph",text:item}); return; }
+    if(item.text || item.content || item.markdown || item.html){
+      out.push({
+        type:item.type || item.label || item.category || "paragraph",
+        text:item.text || item.content || item.markdown || stripHtmlTags(item.html),
+        confidence:item.confidence ?? item.score ?? ""
+      });
+    }
+    ["blocks","lines","paragraphs","items","children"].forEach(k=>{
+      if(Array.isArray(item[k])) flattenDocumentBlocks(item[k], out);
+    });
+  });
+  return out;
+}
+
+function flattenDocumentTables(items, out=[]){
+  if(!Array.isArray(items)) return out;
+  items.forEach(item=>{
+    if(!item) return;
+    if(Array.isArray(item)) { out.push({rows:item}); return; }
+    if(item.rows || item.cells || item.data) out.push(item);
+    ["tables","blocks","items","children"].forEach(k=>{
+      if(Array.isArray(item[k])) flattenDocumentTables(item[k], out);
+    });
+  });
+  return out;
+}
+
+function normalizeDocumentResult(input, rawText=""){
+  const source = (input && typeof input==="object") ? (input.document || input) : {};
+  const rawTables = source.tables || source.table || input?.tables || [];
+  const rawBlocks = source.blocks || source.layout || source.pages || source.lines || [];
+  const blocks = flattenDocumentBlocks(Array.isArray(rawBlocks) ? rawBlocks : []);
+  const tables = flattenDocumentTables(Array.isArray(rawTables) ? rawTables : []);
+  let markdown = source.markdown || source.md || source.text_markdown || "";
+  let html = source.html || source.xhtml || "";
+  let plainText = source.plainText || source.plain_text || source.text || source.ocrText || "";
+
+  if(typeof input==="string"){
+    markdown = input;
+    plainText = input;
+  }
+  if(!markdown && Array.isArray(blocks)) markdown = blocksToMarkdown(blocks);
+  if(!plainText && markdown) plainText = markdown.replace(/[#*_`|>-]/g," ").replace(/\s+\n/g,"\n").trim();
+  if(!plainText && html) plainText = stripHtmlTags(html);
+  html = sanitizeDocumentHtml(html);
+  if(!html && markdown) html = markdownToDocumentHtml(markdown);
+  if(!html && plainText) html = markdownToDocumentHtml(plainText);
+  if(Array.isArray(tables) && tables.length){
+    const tableHtml = tables.map(t=>tableRowsToHtml(t.rows || t.cells || t.data || t)).join("");
+    if(tableHtml && !html.includes("<table")) html += tableHtml;
+  }
+
+  const title = source.title || source.name || (plainText.split(/\n/).find(Boolean)||"인식 문서").slice(0,40);
+  return {
+    title: title || "인식 문서",
+    markdown: markdown || plainText || "",
+    html: html || "",
+    plainText: plainText || stripHtmlTags(html) || markdown || "",
+    blocks: Array.isArray(blocks) ? blocks : [],
+    tables: Array.isArray(tables) ? tables : [],
+    rawText
+  };
+}
+
 function parseJsonFromText(t){
   if(!t) throw new Error("빈 응답");
   // 코드펜스 제거
@@ -3811,11 +4068,21 @@ let aiTabRotation = 0;
 let aiTabMode = "bracket";
 let aiTabRows = [];
 let aiTabRoster = [];
+let aiTabDocument = null;
 
 function aiTabSetMode(mode){
   aiTabMode = mode;
   const radios = document.querySelectorAll('input[name="aiMode"]');
   radios.forEach(r=>r.checked = (r.value===mode));
+  aiTabRows = [];
+  aiTabRoster = [];
+  aiTabDocument = null;
+  const review = document.getElementById("aiTabReviewCard");
+  if(review) review.classList.add("hidden");
+  const runBtn = document.getElementById("aiTabRunBtn");
+  if(runBtn){
+    runBtn.textContent = mode==="document" ? "📄 문서 형태로 불러오기" : "🤖 AI 인식 시작";
+  }
 }
 
 function aiTabOnFile(e){
@@ -3894,16 +4161,31 @@ async function aiTabRun(){
   const origText = btn.textContent;
   btn.textContent = "🔄 인식 중...";
   bar.style.width = "10%";
-  phase.textContent = `이미지 변환 중... (${aiTabMode==="results"?"결과(수기)":"대진표"} 모드)`;
+  const modeLabel = aiTabMode==="document" ? "문서" : (aiTabMode==="results" ? "결과(수기)" : "대진표");
+  phase.textContent = `이미지 변환 중... (${modeLabel} 모드)`;
 
   try{
-    // 회원 명부는 23행 정도라 작은 글자 보존 위해 더 큰 해상도
-    // 손글씨(results)도 작은 숫자 판독을 위해 상향
-    const maxSide = aiTabMode==="members" ? 2400 : (aiTabMode==="results" ? 2200 : 1800);
+    // 문서/손글씨는 작은 글자와 표선을 보존하기 위해 더 큰 해상도 사용
+    const maxSide = aiTabMode==="document" ? 2800 : (aiTabMode==="results" ? 2200 : 1800);
     const b64 = aiTabCanvasToBase64(maxSide, 0.92);
     bar.style.width = "30%";
     phase.textContent = `${s.provider} ${s.model} 호출 중... (이미지 ${maxSide}px)`;
     const prompt = getAiPrompt(aiTabMode);
+
+    if(aiTabMode==="document"){
+      aiTabDocument = await callDocumentVision(s,b64,prompt);
+      aiTabRows = [];
+      aiTabRoster = [];
+      bar.style.width = "100%";
+      phase.textContent = `✓ 문서 인식 완료 · ${aiTabDocument.plainText.length.toLocaleString()}자`;
+      saveAiLog({phase:"AI탭 document", provider:s.provider, model:s.model, parsed:aiTabDocument});
+      document.getElementById("aiTabRawText").textContent = aiTabDocument.rawText || JSON.stringify(aiTabDocument,null,2);
+      aiTabRenderReview();
+      document.getElementById("aiTabReviewCard").classList.remove("hidden");
+      document.getElementById("aiTabReviewCard").scrollIntoView({behavior:"smooth",block:"start"});
+      return;
+    }
+
     const json = await callVision(s,b64,prompt);
     bar.style.width = "80%";
     phase.textContent = "응답 파싱 중...";
@@ -3965,6 +4247,30 @@ function aiTabRenderReview(){
   const head = document.getElementById("aiTabReviewHead");
   const body = document.getElementById("aiTabReviewBody");
   const rosterBox = document.getElementById("aiTabRosterPreview");
+  const docPreview = document.getElementById("aiTabDocumentPreview");
+  const tableWrap = document.getElementById("aiTabTableWrap");
+  const help = document.getElementById("aiTabReviewHelp");
+  const autoRegLabel = document.getElementById("aiTabAutoRegLabel");
+  const applyBtn = document.getElementById("aiTabApplyBtn");
+
+  if(aiTabMode==="document"){
+    head.innerHTML = "";
+    body.innerHTML = "";
+    rosterBox.innerHTML = "";
+    tableWrap.classList.add("hidden");
+    docPreview.classList.remove("hidden");
+    help.textContent = "PaddleOCR-VL이 복원한 문서입니다. HTML 미리보기, Markdown, 원문을 확인하고 저장/복사/다운로드할 수 있습니다.";
+    autoRegLabel.classList.add("hidden");
+    applyBtn.textContent = "💾 문서 저장";
+    renderDocumentPreview();
+    return;
+  }
+
+  docPreview.classList.add("hidden");
+  tableWrap.classList.remove("hidden");
+  help.textContent = "🟢 정확매칭 · 🟠 유사매칭(자동교정) · 🔴 매칭 실패(수정 또는 그대로 적용)";
+  autoRegLabel.classList.remove("hidden");
+  applyBtn.textContent = "✓ 적용";
 
   head.innerHTML = aiTabMode==="results"
     ? `<tr><th style="width:30px">#</th><th colspan="2">팀1</th><th>점1</th><th colspan="2">팀2</th><th>점2</th></tr>`
@@ -4027,6 +4333,143 @@ function aiTabRenderReview(){
   });
 }
 
+function renderDocumentPreview(){
+  const box = document.getElementById("aiTabDocumentPreview");
+  if(!box || !aiTabDocument) return;
+  const doc = aiTabDocument;
+  const title = escapeHtml(doc.title || "인식 문서");
+  const markdown = doc.markdown || doc.plainText || "";
+  const plain = doc.plainText || "";
+  const html = doc.html || markdownToDocumentHtml(markdown);
+  box.innerHTML = `
+    <div style="border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff">
+      <div style="display:flex;align-items:center;gap:8px;justify-content:space-between;padding:8px 10px;background:#f9fafb;border-bottom:1px solid var(--line);flex-wrap:wrap">
+        <div>
+          <b>📄 ${title}</b>
+          <div class="muted" style="font-size:11px">${plain.length.toLocaleString()}자 · 표 ${doc.tables.length||0}개 · 블록 ${doc.blocks.length||0}개</div>
+        </div>
+        <div class="row" style="gap:4px">
+          <button class="btn sec small" onclick="copyDocumentResult('markdown')">Markdown 복사</button>
+          <button class="btn sec small" onclick="copyDocumentResult('text')">원문 복사</button>
+          <button class="btn sec small" onclick="downloadDocumentResult('html')">HTML 저장</button>
+          <button class="btn sec small" onclick="downloadDocumentResult('md')">MD 저장</button>
+        </div>
+      </div>
+      <details open>
+        <summary style="padding:8px 10px;cursor:pointer;font-weight:700">문서 미리보기</summary>
+        <div class="doc-paper" style="margin:8px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 1px 4px rgba(0,0,0,.05);padding:14px;min-height:180px;line-height:1.55;font-size:13px;color:#111827;overflow:auto">
+          ${html || `<pre style="white-space:pre-wrap;font-family:inherit">${escapeHtml(plain)}</pre>`}
+        </div>
+      </details>
+      <details>
+        <summary style="padding:8px 10px;cursor:pointer;border-top:1px solid var(--line)">Markdown</summary>
+        <textarea onchange="editDocumentResult('markdown',this.value)" style="width:100%;min-height:220px;border:0;border-top:1px solid var(--line);padding:10px;font-family:Consolas,monospace;font-size:12px">${escapeHtml(markdown)}</textarea>
+      </details>
+      <details>
+        <summary style="padding:8px 10px;cursor:pointer;border-top:1px solid var(--line)">원문 텍스트</summary>
+        <textarea onchange="editDocumentResult('plainText',this.value)" style="width:100%;min-height:180px;border:0;border-top:1px solid var(--line);padding:10px;font-family:Consolas,monospace;font-size:12px">${escapeHtml(plain)}</textarea>
+      </details>
+    </div>`;
+}
+
+function editDocumentResult(key,value){
+  if(!aiTabDocument) return;
+  aiTabDocument[key] = value;
+  if(key==="markdown"){
+    aiTabDocument.html = markdownToDocumentHtml(value);
+    aiTabDocument.plainText = value.replace(/[#*_`|>-]/g," ").replace(/\n{3,}/g,"\n\n").trim();
+  }
+}
+
+async function copyDocumentResult(type){
+  if(!aiTabDocument) return;
+  const text = type==="html" ? aiTabDocument.html : type==="text" ? aiTabDocument.plainText : aiTabDocument.markdown;
+  try{
+    await navigator.clipboard.writeText(text || "");
+    alert("복사 완료");
+  }catch(e){
+    prompt("복사할 내용입니다. 길게 눌러 복사하세요.", text || "");
+  }
+}
+
+function downloadDocumentResult(type){
+  if(!aiTabDocument) return;
+  const safeDate = new Date().toISOString().slice(0,10);
+  const base = (aiTabDocument.title || "ocr_document").replace(/[\\/:*?"<>|]/g,"_").slice(0,40) || "ocr_document";
+  const isHtml = type==="html";
+  const content = isHtml
+    ? `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${escapeHtml(aiTabDocument.title)}</title><style>body{font-family:Malgun Gothic,Arial,sans-serif;line-height:1.55;padding:24px}table{border-collapse:collapse;width:100%;margin:8px 0}td,th{border:1px solid #999;padding:5px;text-align:left;vertical-align:top}</style></head><body>${aiTabDocument.html}</body></html>`
+    : (aiTabDocument.markdown || aiTabDocument.plainText || "");
+  const blob = new Blob([content],{type:isHtml?"text/html;charset=utf-8":"text/markdown;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${base}_${safeDate}.${isHtml?"html":"md"}`;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
+function getSavedDocuments(){
+  try{return JSON.parse(localStorage.getItem(DOCS_KEY)||"[]")}catch(e){return[]}
+}
+
+function saveDocumentResult(){
+  if(!aiTabDocument) return;
+  const docs = getSavedDocuments();
+  docs.unshift({
+    id: genId(),
+    savedAt: new Date().toISOString(),
+    provider: getAiSettings().provider || "",
+    model: getAiSettings().model || "",
+    ...aiTabDocument
+  });
+  localStorage.setItem(DOCS_KEY, JSON.stringify(docs.slice(0,50)));
+  renderSavedDocuments();
+  alert("문서 저장 완료\n브라우저 localStorage에 보관됐습니다.");
+}
+
+function renderSavedDocuments(){
+  const box = document.getElementById("aiSavedDocsBox");
+  if(!box) return;
+  const docs = getSavedDocuments();
+  if(docs.length===0){
+    box.innerHTML = `<div class="muted">저장된 문서 없음</div>`;
+    return;
+  }
+  box.innerHTML = `<table class="stats-table"><thead><tr><th>문서</th><th>일시</th><th>동작</th></tr></thead><tbody>
+    ${docs.map(d=>`<tr>
+      <td style="text-align:left;padding-left:8px">
+        <b>${escapeHtml(d.title||"인식 문서")}</b>
+        <div class="muted" style="font-size:10px">${escapeHtml(d.provider||"")} ${escapeHtml(d.model||"")} · ${(d.plainText||"").length.toLocaleString()}자</div>
+      </td>
+      <td style="font-size:11px">${escapeHtml((d.savedAt||"").replace("T"," ").slice(0,16))}</td>
+      <td>
+        <button class="btn sec small" onclick="openSavedDocument('${escapeAttr(d.id)}')">열기</button>
+        <button class="btn danger small" onclick="deleteSavedDocument('${escapeAttr(d.id)}')">🗑️</button>
+      </td>
+    </tr>`).join("")}
+  </tbody></table>`;
+}
+
+function openSavedDocument(id){
+  const doc = getSavedDocuments().find(d=>d.id===id);
+  if(!doc) return;
+  aiTabSetMode("document");
+  aiTabDocument = doc;
+  aiTabRows = [];
+  aiTabRoster = [];
+  document.getElementById("aiTabRawText").textContent = doc.rawText || JSON.stringify(doc,null,2);
+  aiTabRenderReview();
+  document.getElementById("aiTabReviewCard").classList.remove("hidden");
+  document.getElementById("aiTabReviewCard").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+function deleteSavedDocument(id){
+  if(!confirm("저장된 문서를 삭제할까요?")) return;
+  const docs = getSavedDocuments().filter(d=>d.id!==id);
+  localStorage.setItem(DOCS_KEY, JSON.stringify(docs));
+  renderSavedDocuments();
+}
+
 function aiTabSetField(i,key,val){
   aiTabRows[i][key] = val;
   if(["t1a","t1b","t2a","t2b"].includes(key)) aiTabRenderReview();
@@ -4039,8 +4482,13 @@ function aiTabCancel(){
   document.getElementById("aiTabReviewCard").classList.add("hidden");
   aiTabRows = [];
   aiTabRoster = [];
+  aiTabDocument = null;
 }
 function aiTabApply(){
+  if(aiTabMode==="document"){
+    saveDocumentResult();
+    return;
+  }
   const autoReg = document.getElementById("aiTabAutoReg").checked;
   const members = getMembers();
   const memberByName = {};
@@ -4128,7 +4576,7 @@ function aiTabApply(){
   document.getElementById("aiTabReviewCard").classList.add("hidden");
   switchTab(aiTabMode==="results"?"results":"games");
   alert(`✓ 적용 완료: ${aiTabRows.length}게임`);
-  aiTabRows = []; aiTabRoster = [];
+  aiTabRows = []; aiTabRoster = []; aiTabDocument = null;
 }
 
 /* ============ 대회 복제 ============ */

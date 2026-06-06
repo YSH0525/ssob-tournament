@@ -1,5 +1,5 @@
 /* SSOB 대진표 서비스워커 — network-first로 항상 최신 */
-const CACHE_NAME = "ssob-v5";
+const CACHE_NAME = "ssob-v6";
 const RUNTIME_CACHE = "ssob-runtime-v5";
 
 self.addEventListener("install", e => {
