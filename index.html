@@ -121,7 +121,7 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.06.07.1</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.06.07.2</span>
 </header>
 
 <nav class="tabs">
@@ -2916,7 +2916,7 @@ function updateProviderHint(){
     gemini: `🆓 무료: <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a> → 30초만에 발급. 카드등록 불필요. 매일 1,500회 무료.`,
     claude: `💰 유료: <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> → API Keys. 이미지당 ~$0.005.`,
     openai: `💰 유료: <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a>. 이미지당 ~$0.002(mini)~$0.01(4o).`,
-    paddle: `🔧 자체 GPU 서버 필요. PaddleOCR-VL을 <b>OpenAI 호환</b>으로 서빙(예: vLLM)하고 <code>/v1/chat/completions</code> URL을 위에 입력. 모델명은 서버의 <code>--served-model-name</code>과 일치해야 함. 인증 없으면 키는 비워두세요. ⚠ 실험적: 표→JSON 응답 정확도는 서빙 설정에 따라 다릅니다.`
+    paddle: `🔧 자체 GPU 서버 필요. PaddleOCR-VL을 <b>OpenAI 호환</b>으로 서빙(예: vLLM)하고 <b>전체 URL</b>을 입력하세요. 예: <code>https://내서버.com/v1/chat/completions</code>. <code>/v1/chat/completions</code>만 입력하면 GitHub Pages로 잘못 요청되어 405 오류가 납니다.`
   };
   hint.innerHTML = hints[p] || "";
 }
@@ -2936,6 +2936,7 @@ function updateAiKeyStatus(){
   const el = document.getElementById("aiKeyStatus");
   if(s.provider==="paddle"){
     if(!s.endpoint){ el.textContent = "엔드포인트 없음 — AI 인식 불가"; el.style.color="var(--lose)"; }
+    else if(!isFullHttpUrl(s.endpoint)){ el.textContent = "엔드포인트 오류 — https://서버주소/v1/chat/completions 전체 URL 필요"; el.style.color="var(--lose)"; }
     else { el.textContent = `엔드포인트 설정됨 · ${s.model}${s.key?" · 키 있음":""}`; el.style.color="var(--win)"; }
     return;
   }
@@ -2949,11 +2950,26 @@ function toggleKeyVisible(){
 function getAiSettings(){
   try{return JSON.parse(localStorage.getItem(AI_KEY)||"{}")}catch(e){return{}}
 }
+function isFullHttpUrl(url){
+  return /^https?:\/\/[^/]+/i.test(String(url||"").trim());
+}
+function normalizeEndpointForMessage(url){
+  const u = String(url||"").trim();
+  if(!u) return "";
+  if(u.startsWith("/")) return `${location.origin}${u}`;
+  return u;
+}
+function validatePaddleEndpoint(s){
+  if(!s.endpoint) throw new Error("PaddleOCR 엔드포인트 URL이 비어 있습니다. 예: https://내서버.com/v1/chat/completions");
+  if(!isFullHttpUrl(s.endpoint)){
+    throw new Error(`PaddleOCR 엔드포인트는 전체 URL이어야 합니다.\n현재 입력: ${s.endpoint}\n브라우저는 이를 ${normalizeEndpointForMessage(s.endpoint)} 로 해석합니다.\n예: https://내서버.com/v1/chat/completions`);
+  }
+}
 /* provider별 자격 충족 여부 (paddle은 키 대신 엔드포인트 필요) */
-function aiCredOk(s){ return s.provider==="paddle" ? !!s.endpoint : !!s.key; }
+function aiCredOk(s){ return s.provider==="paddle" ? !!s.endpoint && isFullHttpUrl(s.endpoint) : !!s.key; }
 function aiCredMsg(s){
   return s.provider==="paddle"
-    ? "대회설정 → 🤖 AI 비전 설정에서 PaddleOCR-VL 엔드포인트 URL을 먼저 입력하세요."
+    ? "대회설정 → 🤖 AI 비전 설정에서 PaddleOCR-VL 엔드포인트 전체 URL을 입력하세요.\n예: https://내서버.com/v1/chat/completions"
     : "대회설정 탭 → AI 비전 설정에서 API 키를 먼저 등록하세요\n(무료: Gemini 추천)";
 }
 /* 통합 비전 호출 디스패치 */
@@ -3206,6 +3222,12 @@ async function aiTestKey(){
       saveAiLog({phase:"Claude 테스트", rawText:text});
       el.textContent = `✓ Claude 연결 성공\n모델: ${s.model}\n응답: ${text}`;
     } else if(s.provider==="paddle"){
+      try{ validatePaddleEndpoint(s); }
+      catch(e){
+        saveAiLog({phase:"PaddleOCR 테스트", error:e.message});
+        el.textContent = `❌ ${e.message}`;
+        return;
+      }
       const headers = {"content-type":"application/json"};
       if(s.key) headers["Authorization"] = "Bearer "+s.key;
       const r = await fetch(s.endpoint,{
@@ -3216,7 +3238,8 @@ async function aiTestKey(){
       const txt = await r.text();
       if(!r.ok){
         saveAiLog({phase:"PaddleOCR 테스트", error:`HTTP ${r.status}`, rawText:txt});
-        el.textContent = `❌ PaddleOCR 서버 오류 (HTTP ${r.status})\n\n${txt.slice(0,500)}\n\n확인: 엔드포인트 URL, CORS 허용, 서버 기동 여부`;
+        const hint405 = r.status===405 ? "\n\n405는 보통 GitHub Pages/잘못된 URL에 POST했을 때 발생합니다. 엔드포인트가 https://서버주소/v1/chat/completions 전체 URL인지 확인하세요." : "";
+        el.textContent = `❌ PaddleOCR 서버 오류 (HTTP ${r.status})\n\n${txt.slice(0,500)}${hint405}\n\n확인: 엔드포인트 URL, CORS 허용, 서버 기동 여부`;
         return;
       }
       let text = txt;
@@ -3574,7 +3597,7 @@ async function callOpenAIVision(s,b64,prompt){
 
 /* PaddleOCR-VL (자체 서버, OpenAI 호환 /v1/chat/completions 서빙 가정 — 예: vLLM) */
 async function callPaddleVision(s,b64,prompt){
-  if(!s.endpoint) throw new Error("PaddleOCR 엔드포인트 URL이 비어 있습니다. (대회설정 → AI 비전 설정)");
+  validatePaddleEndpoint(s);
   const headers = {"content-type":"application/json"};
   if(s.key) headers["Authorization"] = "Bearer "+s.key;
   const res = await fetch(s.endpoint,{
@@ -3595,7 +3618,8 @@ async function callPaddleVision(s,b64,prompt){
   });
   if(!res.ok){
     const t = await res.text();
-    throw new Error(`PaddleOCR 서버 ${res.status}: ${t.slice(0,200)}`);
+    const hint405 = res.status===405 ? "\n엔드포인트가 /v1/chat/completions 상대경로 또는 잘못된 호스트일 가능성이 큽니다. https://서버주소/v1/chat/completions 전체 URL을 입력하세요." : "";
+    throw new Error(`PaddleOCR 서버 ${res.status}: ${t.slice(0,200)}${hint405}`);
   }
   const data = await res.json();
   // OpenAI 호환 응답 우선, 아니면 흔한 OCR 서빙 필드들 폴백
@@ -3643,7 +3667,7 @@ async function callVisionText(s,b64,prompt,maxTokens=8000){
     return data.content?.[0]?.text || JSON.stringify(data);
   }
   if(s.provider==="paddle"){
-    if(!s.endpoint) throw new Error("PaddleOCR 엔드포인트 URL이 비어 있습니다.");
+    validatePaddleEndpoint(s);
     const headers = {"content-type":"application/json"};
     if(s.key) headers["Authorization"] = "Bearer "+s.key;
     const res = await fetch(s.endpoint,{
@@ -3659,7 +3683,11 @@ async function callVisionText(s,b64,prompt,maxTokens=8000){
         ]}]
       })
     });
-    if(!res.ok) throw new Error(`PaddleOCR 서버 ${res.status}: ${(await res.text()).slice(0,300)}`);
+    if(!res.ok){
+      const txt = await res.text();
+      const hint405 = res.status===405 ? "\n엔드포인트가 /v1/chat/completions 상대경로 또는 잘못된 호스트일 가능성이 큽니다. https://서버주소/v1/chat/completions 전체 URL을 입력하세요." : "";
+      throw new Error(`PaddleOCR 서버 ${res.status}: ${txt.slice(0,300)}${hint405}`);
+    }
     const data = await res.json();
     const text = data.choices?.[0]?.message?.content
       ?? data.markdown ?? data.md ?? data.html ?? data.text ?? data.result ?? data.output;
