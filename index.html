@@ -121,7 +121,7 @@
 <header>
   <h1>🏸 S.S.O.B 대진표</h1>
   <span class="date" id="headerDate"></span>
-  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.06.07.2</span>
+  <span id="appVersion" style="font-size:10px;color:#9ca3af;margin-left:6px" title="앱 버전">v2026.06.07.3</span>
 </header>
 
 <nav class="tabs">
@@ -3596,7 +3596,88 @@ async function callOpenAIVision(s,b64,prompt){
 }
 
 /* PaddleOCR-VL (자체 서버, OpenAI 호환 /v1/chat/completions 서빙 가정 — 예: vLLM) */
+function sleep(ms){ return new Promise(resolve=>setTimeout(resolve,ms)); }
+
+function paddleJobsEndpoint(endpoint){
+  const url = String(endpoint||"").trim();
+  if(/\/v1\/chat\/completions\/?$/i.test(url)) return url.replace(/\/v1\/chat\/completions\/?$/i,"/v1/ocr/jobs");
+  return url.replace(/\/$/,"") + "/v1/ocr/jobs";
+}
+
+function extractPaddleText(data){
+  return data?.choices?.[0]?.message?.content
+    ?? data?.markdown ?? data?.md ?? data?.html ?? data?.text ?? data?.result ?? data?.output ?? "";
+}
+
+async function callPaddleDirect(s,payload,headers){
+  const res = await fetch(s.endpoint,{method:"POST",headers,body:JSON.stringify(payload)});
+  if(!res.ok){
+    const t = await res.text();
+    const timeoutHint = res.status===524 ? "\nPaddleOCR-VL CPU processing took too long for the tunnel. Use the updated async bridge/job endpoint." : "";
+    throw new Error(`PaddleOCR server ${res.status}: ${t.slice(0,300)}${timeoutHint}`);
+  }
+  const data = await res.json();
+  const text = extractPaddleText(data);
+  if(!text) throw new Error("Empty PaddleOCR response: "+JSON.stringify(data).slice(0,200));
+  return typeof text==="string" ? text : JSON.stringify(text);
+}
+
+async function callPaddleRawText(s,b64,prompt,maxTokens=8000){
+  validatePaddleEndpoint(s);
+  const headers = {"content-type":"application/json"};
+  if(s.key) headers["Authorization"] = "Bearer "+s.key;
+  const payload = {
+    model:s.model || "PaddleOCR-VL",
+    temperature:0.05,
+    max_tokens:maxTokens,
+    messages:[{role:"user",content:[
+      {type:"text",text:prompt || AI_PROMPT_BRACKET},
+      {type:"image_url",image_url:{url:`data:image/jpeg;base64,${b64}`}}
+    ]}]
+  };
+
+  const jobsUrl = paddleJobsEndpoint(s.endpoint);
+  let startRes;
+  try{
+    startRes = await fetch(jobsUrl,{method:"POST",headers,body:JSON.stringify(payload)});
+  }catch(e){
+    return callPaddleDirect(s,payload,headers);
+  }
+  if(startRes.status===404 || startRes.status===405){
+    return callPaddleDirect(s,payload,headers);
+  }
+  if(!startRes.ok){
+    const t = await startRes.text();
+    throw new Error(`PaddleOCR job start ${startRes.status}: ${t.slice(0,300)}`);
+  }
+
+  const job = await startRes.json();
+  if(!job.id) throw new Error("PaddleOCR job id missing: "+JSON.stringify(job).slice(0,200));
+  const pollUrl = jobsUrl.replace(/\/$/,"") + "/" + encodeURIComponent(job.id);
+  const deadline = Date.now() + 15*60*1000;
+  while(Date.now() < deadline){
+    await sleep(3000);
+    const pollRes = await fetch(pollUrl,{headers});
+    if(!pollRes.ok){
+      const t = await pollRes.text();
+      throw new Error(`PaddleOCR job poll ${pollRes.status}: ${t.slice(0,300)}`);
+    }
+    const state = await pollRes.json();
+    if(state.status==="done"){
+      const text = extractPaddleText(state.result);
+      if(!text) throw new Error("Empty PaddleOCR job result: "+JSON.stringify(state).slice(0,200));
+      return typeof text==="string" ? text : JSON.stringify(text);
+    }
+    if(state.status==="error"){
+      throw new Error("PaddleOCR job failed: "+(state.error || JSON.stringify(state).slice(0,200)));
+    }
+  }
+  throw new Error("PaddleOCR job timed out after 15 minutes");
+}
+
 async function callPaddleVision(s,b64,prompt){
+  const paddleText = await callPaddleRawText(s,b64,prompt,4000);
+  return parseJsonFromText(paddleText);
   validatePaddleEndpoint(s);
   const headers = {"content-type":"application/json"};
   if(s.key) headers["Authorization"] = "Bearer "+s.key;
@@ -3667,6 +3748,7 @@ async function callVisionText(s,b64,prompt,maxTokens=8000){
     return data.content?.[0]?.text || JSON.stringify(data);
   }
   if(s.provider==="paddle"){
+    return callPaddleRawText(s,b64,prompt,maxTokens);
     validatePaddleEndpoint(s);
     const headers = {"content-type":"application/json"};
     if(s.key) headers["Authorization"] = "Bearer "+s.key;
