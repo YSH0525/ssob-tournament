@@ -20,6 +20,7 @@ desktop.ini
 .vscode/
 .idea/
 *.iml
+.claude/
 
 # 빌드 / 의존성
 node_modules/

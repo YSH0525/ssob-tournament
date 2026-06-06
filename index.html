@@ -13,9 +13,10 @@
 <meta name="apple-mobile-web-app-title" content="SSOB" />
 <link rel="icon" type="image/svg+xml" href="icon.svg" />
 <link rel="apple-touch-icon" href="icon.svg" />
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<!-- 외부 라이브러리: 사용자 동작(이미지 출력/OCR/동기화) 시에만 필요 → defer로 초기 렌더 비차단 -->
+<script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   :root{
     --bg:#f5f6f8; --card:#fff; --line:#d8dbe0; --ink:#1f2937;
@@ -200,6 +201,7 @@
           <option value="gemini">🆓 Google Gemini (무료 추천)</option>
           <option value="claude">Anthropic Claude (유료, 최고정확도)</option>
           <option value="openai">OpenAI GPT-4o (유료)</option>
+          <option value="paddle">🔧 PaddleOCR-VL (자체 서버)</option>
         </select>
       </div>
       <div class="row" style="margin-top:6px">
@@ -218,10 +220,16 @@
             <option value="gpt-4o">gpt-4o</option>
             <option value="gpt-4o-mini">gpt-4o-mini</option>
           </optgroup>
+          <optgroup label="PaddleOCR (자체 서버)">
+            <option value="PaddleOCR-VL">PaddleOCR-VL</option>
+          </optgroup>
         </select>
       </div>
+      <div class="row" id="aiEndpointRow" style="margin-top:6px;display:none">
+        <input type="text" id="aiEndpoint" placeholder="https://내서버/v1/chat/completions" style="flex:1;min-width:200px" onchange="saveAiSettings()"/>
+      </div>
       <div class="row" style="margin-top:6px">
-        <input type="password" id="aiKey" placeholder="API 키 붙여넣기" style="flex:1;min-width:180px" onchange="saveAiSettings()"/>
+        <input type="password" id="aiKey" placeholder="API 키 붙여넣기 (PaddleOCR는 선택)" style="flex:1;min-width:180px" onchange="saveAiSettings()"/>
         <button class="btn sec small" onclick="toggleKeyVisible()">👁</button>
       </div>
       <div class="row" style="margin-top:6px">
@@ -2161,6 +2169,7 @@ function printBracketPdf(mode){
 }
 
 function exportImage(id){
+  if(typeof html2canvas==="undefined"){ alert("이미지 라이브러리 로딩 중입니다. 잠시 후 다시 시도하세요."); return; }
   const node = document.getElementById(id);
   html2canvas(node,{backgroundColor:"#ffffff",scale:2}).then(canvas=>{
     const a = document.createElement("a");
@@ -2867,14 +2876,24 @@ function loadAiSettings(){
     document.getElementById("aiProvider").value = s.provider || "gemini";
     document.getElementById("aiModel").value = s.model || "gemini-2.5-flash";
     document.getElementById("aiKey").value = s.key || "";
+    const ep = document.getElementById("aiEndpoint");
+    if(ep) ep.value = s.endpoint || "";
+    updateProviderUI();
     updateAiKeyStatus();
     updateProviderHint();
   }catch(e){}
 }
+/* provider별 부가 입력(엔드포인트) 표시 토글 */
+function updateProviderUI(){
+  const p = document.getElementById("aiProvider").value;
+  const row = document.getElementById("aiEndpointRow");
+  if(row) row.style.display = p==="paddle" ? "" : "none";
+}
 function onProviderChange(){
   const p = document.getElementById("aiProvider").value;
-  const defaults = {gemini:"gemini-2.5-flash", claude:"claude-sonnet-4-6", openai:"gpt-4o-mini"};
+  const defaults = {gemini:"gemini-2.5-flash", claude:"claude-sonnet-4-6", openai:"gpt-4o-mini", paddle:"PaddleOCR-VL"};
   document.getElementById("aiModel").value = defaults[p];
+  updateProviderUI();
   saveAiSettings();
   updateProviderHint();
 }
@@ -2885,15 +2904,18 @@ function updateProviderHint(){
   const hints = {
     gemini: `🆓 무료: <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a> → 30초만에 발급. 카드등록 불필요. 매일 1,500회 무료.`,
     claude: `💰 유료: <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> → API Keys. 이미지당 ~$0.005.`,
-    openai: `💰 유료: <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a>. 이미지당 ~$0.002(mini)~$0.01(4o).`
+    openai: `💰 유료: <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a>. 이미지당 ~$0.002(mini)~$0.01(4o).`,
+    paddle: `🔧 자체 GPU 서버 필요. PaddleOCR-VL을 <b>OpenAI 호환</b>으로 서빙(예: vLLM)하고 <code>/v1/chat/completions</code> URL을 위에 입력. 모델명은 서버의 <code>--served-model-name</code>과 일치해야 함. 인증 없으면 키는 비워두세요. ⚠ 실험적: 표→JSON 응답 정확도는 서빙 설정에 따라 다릅니다.`
   };
   hint.innerHTML = hints[p] || "";
 }
 function saveAiSettings(){
+  const epEl = document.getElementById("aiEndpoint");
   const s = {
     provider: document.getElementById("aiProvider").value,
     model: document.getElementById("aiModel").value,
-    key: document.getElementById("aiKey").value
+    key: document.getElementById("aiKey").value,
+    endpoint: epEl ? epEl.value.trim() : ""
   };
   localStorage.setItem(AI_KEY, JSON.stringify(s));
   updateAiKeyStatus();
@@ -2901,6 +2923,11 @@ function saveAiSettings(){
 function updateAiKeyStatus(){
   const s = getAiSettings();
   const el = document.getElementById("aiKeyStatus");
+  if(s.provider==="paddle"){
+    if(!s.endpoint){ el.textContent = "엔드포인트 없음 — AI 인식 불가"; el.style.color="var(--lose)"; }
+    else { el.textContent = `엔드포인트 설정됨 · ${s.model}${s.key?" · 키 있음":""}`; el.style.color="var(--win)"; }
+    return;
+  }
   if(!s.key){ el.textContent = "키 없음 — AI 인식 불가"; el.style.color="var(--lose)"; }
   else { el.textContent = `키 저장됨 (...${s.key.slice(-6)}) · ${s.provider}/${s.model}`; el.style.color="var(--win)"; }
 }
@@ -2910,6 +2937,20 @@ function toggleKeyVisible(){
 }
 function getAiSettings(){
   try{return JSON.parse(localStorage.getItem(AI_KEY)||"{}")}catch(e){return{}}
+}
+/* provider별 자격 충족 여부 (paddle은 키 대신 엔드포인트 필요) */
+function aiCredOk(s){ return s.provider==="paddle" ? !!s.endpoint : !!s.key; }
+function aiCredMsg(s){
+  return s.provider==="paddle"
+    ? "대회설정 → 🤖 AI 비전 설정에서 PaddleOCR-VL 엔드포인트 URL을 먼저 입력하세요."
+    : "대회설정 탭 → AI 비전 설정에서 API 키를 먼저 등록하세요\n(무료: Gemini 추천)";
+}
+/* 통합 비전 호출 디스패치 */
+async function callVision(s,b64,prompt){
+  if(s.provider==="gemini") return callGeminiVision(s,b64,prompt);
+  if(s.provider==="claude") return callClaudeVision(s,b64,prompt);
+  if(s.provider==="paddle") return callPaddleVision(s,b64,prompt);
+  return callOpenAIVision(s,b64,prompt);
 }
 
 /* ============ OCR (이미지 인식) ============ */
@@ -3105,7 +3146,7 @@ async function aiTestKey(){
   const el = document.getElementById("aiTestResult");
   el.style.display="block";
   el.textContent = "⏳ 테스트 호출 중...";
-  if(!s.key){ el.textContent = "❌ API 키 미등록"; return; }
+  if(!aiCredOk(s)){ el.textContent = s.provider==="paddle" ? "❌ 엔드포인트 URL 미입력" : "❌ API 키 미등록"; return; }
   saveAiLog({phase:"테스트 시작", provider:s.provider, model:s.model});
   try{
     let res;
@@ -3153,6 +3194,24 @@ async function aiTestKey(){
       const text = data.content?.[0]?.text || "";
       saveAiLog({phase:"Claude 테스트", rawText:text});
       el.textContent = `✓ Claude 연결 성공\n모델: ${s.model}\n응답: ${text}`;
+    } else if(s.provider==="paddle"){
+      const headers = {"content-type":"application/json"};
+      if(s.key) headers["Authorization"] = "Bearer "+s.key;
+      const r = await fetch(s.endpoint,{
+        method:"POST",
+        headers,
+        body: JSON.stringify({model:s.model||"PaddleOCR-VL", max_tokens:50, messages:[{role:"user",content:"Reply: ok"}]})
+      });
+      const txt = await r.text();
+      if(!r.ok){
+        saveAiLog({phase:"PaddleOCR 테스트", error:`HTTP ${r.status}`, rawText:txt});
+        el.textContent = `❌ PaddleOCR 서버 오류 (HTTP ${r.status})\n\n${txt.slice(0,500)}\n\n확인: 엔드포인트 URL, CORS 허용, 서버 기동 여부`;
+        return;
+      }
+      let text = txt;
+      try{ const d=JSON.parse(txt); text = d.choices?.[0]?.message?.content ?? d.result ?? d.text ?? txt; }catch(e){}
+      saveAiLog({phase:"PaddleOCR 테스트", rawText:txt});
+      el.textContent = `✓ PaddleOCR 서버 응답 성공\n엔드포인트: ${s.endpoint}\n모델: ${s.model}\n응답: ${String(text).slice(0,200)}`;
     } else {
       const r = await fetch("https://api.openai.com/v1/chat/completions",{
         method:"POST",
@@ -3249,7 +3308,7 @@ function getAiPrompt(mode){
 async function runAiOcr(mode){
   if(!ocrImage){alert("이미지를 먼저 선택하세요");return}
   const s = getAiSettings();
-  if(!s.key){alert("대회설정 탭 → AI 비전 설정에서 API 키를 먼저 등록하세요\n(무료: Gemini 추천)");return}
+  if(!aiCredOk(s)){alert(aiCredMsg(s));return}
   ocrMode = mode || ocrMode;
   const btnId = ocrMode==="results" ? "resultsAiBtn" : "bracketAiBtn";
   const btn = document.getElementById(btnId);
@@ -3258,12 +3317,11 @@ async function runAiOcr(mode){
   const modeLabel = ocrMode==="results" ? "결과 (수기)" : "대진표";
   // 상태표시 - 버튼 옆 또는 alert
   try{
-    const b64 = canvasToBase64JpegAuto();
+    // 손글씨(results)는 작은 숫자 판독이 관건 → 더 큰 해상도/고품질로 전송
+    const maxSide = ocrMode==="results" ? 2200 : 1800;
+    const b64 = canvasToBase64JpegAuto(maxSide, 0.92);
     const prompt = getAiPrompt(ocrMode);
-    let json;
-    if(s.provider==="gemini") json = await callGeminiVision(s,b64,prompt);
-    else if(s.provider==="claude") json = await callClaudeVision(s,b64,prompt);
-    else json = await callOpenAIVision(s,b64,prompt);
+    const json = await callVision(s,b64,prompt);
 
     console.log("AI 응답:", json);
     saveAiLog({phase:`${modeLabel} 인식`, provider:s.provider, model:s.model, parsed:json});
@@ -3472,6 +3530,39 @@ async function callOpenAIVision(s,b64,prompt){
   const data = await res.json();
   const text = data.choices?.[0]?.message?.content || "";
   return parseJsonFromText(text);
+}
+
+/* PaddleOCR-VL (자체 서버, OpenAI 호환 /v1/chat/completions 서빙 가정 — 예: vLLM) */
+async function callPaddleVision(s,b64,prompt){
+  if(!s.endpoint) throw new Error("PaddleOCR 엔드포인트 URL이 비어 있습니다. (대회설정 → AI 비전 설정)");
+  const headers = {"content-type":"application/json"};
+  if(s.key) headers["Authorization"] = "Bearer "+s.key;
+  const res = await fetch(s.endpoint,{
+    method:"POST",
+    headers,
+    body: JSON.stringify({
+      model: s.model || "PaddleOCR-VL",
+      temperature: 0.1,
+      max_tokens: 4000,
+      messages:[{
+        role:"user",
+        content:[
+          {type:"text", text: prompt||AI_PROMPT_BRACKET},
+          {type:"image_url", image_url:{url:`data:image/jpeg;base64,${b64}`}}
+        ]
+      }]
+    })
+  });
+  if(!res.ok){
+    const t = await res.text();
+    throw new Error(`PaddleOCR 서버 ${res.status}: ${t.slice(0,200)}`);
+  }
+  const data = await res.json();
+  // OpenAI 호환 응답 우선, 아니면 흔한 OCR 서빙 필드들 폴백
+  const text = data.choices?.[0]?.message?.content
+    ?? data.result ?? data.text ?? data.output ?? "";
+  if(!text) throw new Error("PaddleOCR 빈 응답: "+JSON.stringify(data).slice(0,200));
+  return parseJsonFromText(typeof text==="string" ? text : JSON.stringify(text));
 }
 
 function parseJsonFromText(t){
@@ -3790,8 +3881,8 @@ function aiTabCanvasToBase64(maxSide=1600, quality=0.85){
 async function aiTabRun(){
   if(!aiTabImage){ alert("이미지를 먼저 선택하세요"); return; }
   const s = getAiSettings();
-  if(!s.key){
-    alert("대회설정 탭 → 🤖 AI 비전 설정에서 API 키를 먼저 등록하세요.\n(무료: Gemini 추천 — https://aistudio.google.com/apikey)");
+  if(!aiCredOk(s)){
+    alert(aiCredMsg(s));
     switchTab("setup");
     return;
   }
@@ -3807,15 +3898,13 @@ async function aiTabRun(){
 
   try{
     // 회원 명부는 23행 정도라 작은 글자 보존 위해 더 큰 해상도
-    const maxSide = aiTabMode==="members" ? 2400 : 1600;
+    // 손글씨(results)도 작은 숫자 판독을 위해 상향
+    const maxSide = aiTabMode==="members" ? 2400 : (aiTabMode==="results" ? 2200 : 1800);
     const b64 = aiTabCanvasToBase64(maxSide, 0.92);
     bar.style.width = "30%";
     phase.textContent = `${s.provider} ${s.model} 호출 중... (이미지 ${maxSide}px)`;
     const prompt = getAiPrompt(aiTabMode);
-    let json;
-    if(s.provider==="gemini") json = await callGeminiVision(s,b64,prompt);
-    else if(s.provider==="claude") json = await callClaudeVision(s,b64,prompt);
-    else json = await callOpenAIVision(s,b64,prompt);
+    const json = await callVision(s,b64,prompt);
     bar.style.width = "80%";
     phase.textContent = "응답 파싱 중...";
     saveAiLog({phase:`AI탭 ${aiTabMode}`, provider:s.provider, model:s.model, parsed:json});
